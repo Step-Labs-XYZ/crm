@@ -69,10 +69,21 @@ export class CalendarSyncService {
 			};
 		}
 
+		const organizationId = await this.match.tenantOf(row.userId);
+
+		if (!organizationId) {
+			return {
+				source: "calendar",
+				userId: row.userId,
+				status: "skipped",
+				reason: "That account does not belong to a workspace.",
+			};
+		}
+
 		await this.state.markRunning(row.id);
 
 		const [internal, suppressedDomains, suppressedEmails] = await Promise.all([
-			this.match.internalIdentity(),
+			this.match.internalIdentity(organizationId),
 			this.match.suppressedDomains(),
 			this.match.suppressedEmails(),
 		]);

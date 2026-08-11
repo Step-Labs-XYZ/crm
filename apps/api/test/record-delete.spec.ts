@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { db, RecordSource } from "@crm/db";
+import { WORKSPACE_ID } from "@crm/db/workspace";
 import { AgentQueueService } from "../src/agent/agent-queue.service";
 import { AgentTriggerService } from "../src/agent/agent-trigger.service";
 import { CompaniesService } from "../src/companies/companies.service";
@@ -42,7 +43,7 @@ const companies = new CompaniesService(
 const match = new GoogleMatchService(db, directory, agent, log);
 
 async function matchContext() {
-	const internal = await match.internalIdentity();
+	const internal = await match.internalIdentity(WORKSPACE_ID);
 	return {
 		ourAddresses: internal.addresses,
 		ourDomains: internal.domains,

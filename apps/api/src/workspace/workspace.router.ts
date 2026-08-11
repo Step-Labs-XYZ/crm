@@ -26,7 +26,7 @@ export class WorkspaceRouter {
 
 	@Query()
 	async get(@Ctx() ctx: AuthedTrpcContext) {
-		return this.workspace.get(ctx.user.id);
+		return this.workspace.get(ctx.organizationId, ctx.user.id);
 	}
 
 	@Query({ input: memberListInput })
@@ -34,7 +34,7 @@ export class WorkspaceRouter {
 		@Ctx() ctx: AuthedTrpcContext,
 		@Input() input: z.infer<typeof memberListInput>,
 	) {
-		return this.workspace.members(ctx.user.id, input);
+		return this.workspace.members(ctx.organizationId, ctx.user.id, input);
 	}
 
 	@Mutation({ input: updateWorkspaceInput })
@@ -42,7 +42,7 @@ export class WorkspaceRouter {
 		@Ctx() ctx: AuthedTrpcContext,
 		@Input() input: z.infer<typeof updateWorkspaceInput>,
 	) {
-		return this.workspace.update(ctx.user.id, input);
+		return this.workspace.update(ctx.organizationId, ctx.user.id, input);
 	}
 
 	@Mutation({ input: setMemberRoleInput })
@@ -50,6 +50,6 @@ export class WorkspaceRouter {
 		@Ctx() ctx: AuthedTrpcContext,
 		@Input() input: z.infer<typeof setMemberRoleInput>,
 	) {
-		return this.workspace.setMemberRole(ctx.user.id, input);
+		return this.workspace.setMemberRole(ctx.organizationId, ctx.user.id, input);
 	}
 }

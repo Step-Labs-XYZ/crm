@@ -198,6 +198,11 @@ right side of `docs/api.md`'s first rule.
 
 ### Tenancy is now a prerequisite, and here is its measured size
 
+> **Started.** The auth and workspace half has landed — the tenant is resolved
+> from the signed-in address and the allow-list is per workspace. The 212 CRM
+> query sites below are still unscoped. [`tenancy.md`](./tenancy.md) is the
+> living record; the measurement here is what it was sized against.
+
 Upstream did not merely leave tenancy out — it removed it and wrote the removal
 down as a rule. Reintroducing it is the larger half of this project. Measured
 against the tree on 2026-08-10:

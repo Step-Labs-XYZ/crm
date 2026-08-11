@@ -159,6 +159,7 @@ export class GoogleConnectionService {
 	}
 
 	async suppressDomain(
+		organizationId: string,
 		domain: string,
 		options: { reason?: string; purge: boolean },
 	): Promise<{ domain: string; purged: number }> {
@@ -167,7 +168,7 @@ export class GoogleConnectionService {
 			throw new NotFoundException(`"${domain}" is not a domain.`);
 		}
 
-		const ours = await this.match.internalIdentity();
+		const ours = await this.match.internalIdentity(organizationId);
 		if (ours.domains.has(normalised)) {
 			throw new NotFoundException(
 				"That is our own domain — it is already excluded.",

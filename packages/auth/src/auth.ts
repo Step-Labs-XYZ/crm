@@ -9,11 +9,7 @@ import { env } from "./env";
 import { ensureWorkspaceMembership } from "./organization";
 import { SYNC_SCOPES } from "./scopes";
 import { notifySignedIn } from "./signed-in";
-import {
-	hasSignInAllowList,
-	isWorkspaceEmail,
-	primaryWorkspaceDomain,
-} from "./workspace";
+import { admitSignUp } from "./tenant";
 
 const socialProviders: NonNullable<BetterAuthOptions["socialProviders"]> = {};
 
@@ -24,8 +20,6 @@ if (env.google) {
 		scope: [...SYNC_SCOPES],
 
 		accessType: "offline",
-
-		...(primaryWorkspaceDomain() ? { hd: primaryWorkspaceDomain() } : {}),
 	};
 }
 
@@ -105,19 +99,19 @@ export const auth = betterAuth({
 		user: {
 			create: {
 				before: async (user) => {
-					if (!hasSignInAllowList()) {
+					const admission = await admitSignUp(user.email);
+
+					if (admission === "unconfigured") {
 						throw new APIError("FORBIDDEN", {
 							message:
 								'No one can sign in yet: set ALLOWED_SIGN_IN in .env to your email domain (for example ALLOWED_SIGN_IN="acme.com") and restart.',
 						});
 					}
 
-					if (!isWorkspaceEmail(user.email)) {
-						const domain = primaryWorkspaceDomain();
+					if (admission === "refused") {
 						throw new APIError("FORBIDDEN", {
-							message: domain
-								? `This CRM is private. Sign in with your @${domain} account.`
-								: "This CRM is private. That address is not on the allow-list.",
+							message:
+								"This CRM is private. That address does not belong to any workspace on this install.",
 						});
 					}
 

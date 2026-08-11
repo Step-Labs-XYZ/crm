@@ -209,6 +209,9 @@ export class GmailSyncService {
 	): Promise<{ written: number; remaining: number }> {
 		if (ids.length === 0) return { written: 0, remaining: 0 };
 
+		const organizationId = await this.match.tenantOf(row.userId);
+		if (!organizationId) return { written: 0, remaining: 0 };
+
 		const alreadyHave = await this.db.emailMessage.findMany({
 			where: { gmailMessageId: { in: [...ids] } },
 			select: { gmailMessageId: true },
@@ -224,7 +227,7 @@ export class GmailSyncService {
 		if (batch.length === 0) return { written: 0, remaining };
 
 		const [internal, suppressedDomains, suppressedEmails] = await Promise.all([
-			this.match.internalIdentity(),
+			this.match.internalIdentity(organizationId),
 			this.match.suppressedDomains(),
 			this.match.suppressedEmails(),
 		]);

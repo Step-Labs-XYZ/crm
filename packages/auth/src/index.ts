@@ -33,8 +33,19 @@ export {
 	ssoProviderName,
 } from "./sso";
 export {
+	admitSignUp,
+	organizationForEmail,
+	type SignUpAdmission,
+	signInIsClaimed,
+	tenantSignInDomains,
+} from "./tenant";
+export {
+	bootstrapSignInEntries,
 	hasSignInAllowList,
 	isWorkspaceEmail,
+	normalizeSignInEntry,
+	parseSignInEntries,
 	primaryWorkspaceDomain,
+	signInCandidates,
 	workspaceDomains,
 } from "./workspace";
