@@ -7,6 +7,7 @@ import type {
 import {
 	LeadHandoffService,
 	NO_ASSET_MANAGER,
+	NOT_A_UUID,
 } from "../src/fundreporting/lead-handoff.service";
 import type {
 	PlatformApi,
@@ -19,7 +20,7 @@ const suffix = (process.env.TEST_RUN_ID ?? "lead-handoff").replace(
 );
 
 const TENANT = `${suffix}-am`;
-const ASSET_MANAGER = "am_test_42";
+const ASSET_MANAGER = "3f1b2c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d";
 const REP = `${suffix}-rep`;
 
 type Call = {
@@ -205,6 +206,26 @@ describe("when it cannot file", () => {
 
 		expect(result.state).toBe(HandoffState.REFUSED);
 		expect(result.reason).toBe(NO_ASSET_MANAGER);
+		expect(calls).toHaveLength(0);
+	});
+
+	it("refuses an asset manager id that is not a UUID, before calling out", async () => {
+		const dealId = await seedWonDeal();
+
+		await db.organization.update({
+			where: { id: TENANT },
+			data: { assetManagerId: "am_test_42" },
+		});
+
+		const { api, calls } = fakePlatform({});
+		const service = new LeadHandoffService(db, api);
+
+		const result = await withTenant(TENANT, async () =>
+			service.onDealWon(dealId),
+		);
+
+		expect(result.state).toBe(HandoffState.REFUSED);
+		expect(result.reason).toBe(NOT_A_UUID);
 		expect(calls).toHaveLength(0);
 	});
 

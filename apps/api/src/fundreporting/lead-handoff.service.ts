@@ -17,6 +17,15 @@ import {
 export const NO_ASSET_MANAGER =
 	"This workspace has not been told which asset manager it is on FundReporting, so a won deal cannot be filed there.";
 
+export const NOT_A_UUID =
+	"This workspace's asset manager id is not a UUID, and FundReporting only accepts one. Correct it before a won deal can be filed there.";
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function isAssetManagerId(value: string | null): boolean {
+	return Boolean(value && UUID.test(value.trim()));
+}
+
 export type HandoffResult = {
 	dealId: string;
 	state: HandoffState;
@@ -38,6 +47,10 @@ export class LeadHandoffService {
 
 		if (!source) {
 			return this.settle(dealId, HandoffState.REFUSED, NO_ASSET_MANAGER, null);
+		}
+
+		if (!isAssetManagerId(source.assetManagerId)) {
+			return this.settle(dealId, HandoffState.REFUSED, NOT_A_UUID, null);
 		}
 
 		if (!this.platform.configured()) {
