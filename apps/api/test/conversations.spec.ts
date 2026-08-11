@@ -174,6 +174,7 @@ describe("ConversationsService", () => {
 
 			await db.agentEvent.create({
 				data: {
+					organizationId: TEST_TENANT,
 					id: `evt_${suffix}`,
 					sessionId: conversation.sessionId,
 					contactId,

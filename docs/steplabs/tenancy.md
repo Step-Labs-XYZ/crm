@@ -100,15 +100,16 @@ Scoped in this change:
 | `SsoService` | same, plus `remove` refuses a provider another tenant owns |
 | `GoogleMatchService.internalIdentity` | that tenant's members and entries |
 | Gmail and Calendar sync | the mailbox owner's tenant, or the mailbox is skipped |
+| The five CRM records | a Prisma extension, from the ambient scope |
+| The agent's queue, transcript and conversations | their own tenant column |
+| `WorkspaceProfile` — who *we* are | one row per workspace, keyed on its id |
 
 **Not scoped yet, and each is its own feature:**
 
-- **The agent** — `readWorkspaceProfile`, `readWorkspaceIdentity` and
-  `writeWorkspaceProfile` still key on `WORKSPACE_ID`, because the agent's tasks,
-  preambles and tools have no tenant to pass them yet. Its documented permission
-  to read everything including email bodies is justified in
-  [`docs/agent.md`](../agent.md) by being single tenant, and that justification
-  no longer holds.
+- **The agent's read boundary.** It is scoped to one workspace now, but
+  [`docs/agent.md`](../agent.md) still justifies its permission to read
+  everything — including full email bodies — by the install being single tenant.
+  The mechanism is fixed; the *justification* has not been revisited.
 - **`sso.signInOptions`** is the one public procedure, and it has no session to
   take a tenant from — so it lists every provider on the install. It returns only
   a provider id and a display name, never a secret, but it does let a stranger
@@ -164,21 +165,78 @@ has returned — so the query runs with the scope already gone and throws. Write
 callback. Everything in a request is fine, because the whole request runs inside
 the scope; this only bites when a query is handed *out* of one.
 
-### What the agent does in the meantime
+### The second trap: returning a query is not the same as awaiting it
 
-The agent has no tenant plumbing, and its sessions run in async contexts the
-dispatcher's scope does not reach. So `agent.ts` resolves the install's **only**
-workspace at boot and sets it for the process (`setSingleTenantProcess`).
+This one is sharper than the first and it cost an afternoon. Inside an async
+function:
 
-That is a stopgap and it is written to fail loudly rather than quietly: with more
-than one workspace, `soleTenantId()` refuses, the agent logs that it cannot
-decide who it works for, and every CRM read refuses. The day a second asset
-manager is added, the agent stops — which is the correct behaviour for a process
-whose documented permission is to read everything including email bodies.
+```ts
+return db.agentTask.create({ … });   // wrong
+return await db.agentTask.create({ … });   // right
+```
 
-`setSingleTenantProcess` has exactly one caller and must keep it. Called anywhere
-in the API it would give every request a fallback workspace, which is precisely
-the silent cross-tenant read the extension refuses.
+Returning a thenable from an async function makes the runtime call its `then`
+during promise *resolution*, and that job does not carry the caller's
+`AsyncLocalStorage` context. So the arguments are built inside the scope — a
+`tenantId()` in the data object succeeds — and the query then executes outside
+it and is refused. The stack says `at then`, which is the tell.
+
+`await` before returning, on every query against a scoped model. It is the only
+rule in this file a reviewer has to remember, because nothing else catches it:
+it typechecks, and it only fails when a scope is actually required.
+
+## The agent
+
+The agent's sessions run in async contexts the dispatcher's scope does not
+reach, so the ambient scope is resolved from eve's own session state instead.
+
+- **The tenant rides in the session, like everything else the session knows
+  about its record.** `lib/focus.ts` — which already carries the contact, the
+  company and the budget — carries the `organizationId`, and `agent.ts` registers
+  `focusedTenant` as the ambient resolver with `@crm/db`. A tool that reads the
+  CRM does not know any of this; it just works, inside the workspace whose task
+  it is.
+- **`instructions/task.ts` seeds it first, before the preamble.** The preamble
+  reads the CRM to say who this record is, so the tenant has to be in scope
+  before that read, not after it.
+- **Both doors carry it.** A dispatched task passes `organizationId` through
+  `taskAuth`, and a rep opening the Agent tab gets it from **their server-side
+  session** — `activeOrganizationId`, never a header. A header would let a rep
+  name somebody else's workspace, which is the one thing the bridge exists to
+  prevent.
+- **`AgentTask` and `AgentEvent` carry their own tenant column.** They hold
+  `contactId`/`companyId` as plain columns with no foreign key, on purpose — they
+  outlive the records they name — so neither can inherit a workspace through a
+  join.
+- **The dispatcher is the one thing that spans workspaces**, and it says so:
+  `drainAll` runs inside `acrossTenants(…)`. Each claimed row is then handled
+  inside `withTenant(task.organizationId, …)`, so the scan is global and the work
+  never is.
+
+### One workspace's backlog must not starve another's
+
+`claimDue` used to order by `priority DESC, dueAt ASC` and take the first N.
+With two workspaces that is not a queue, it is a race one of them always loses:
+twenty rows at `requested` (300) took every slot from twenty rows at `recheck`
+(0), forever, and the second asset manager's CRM simply never enriched.
+
+So the claim is round-robin by workspace. A window function numbers each
+workspace's rows by the existing priority order, and the claim takes seat 1 from
+everyone before seat 2 from anyone:
+
+```sql
+ROW_NUMBER() OVER (PARTITION BY "organizationId" ORDER BY priority DESC, "dueAt" ASC)
+```
+
+Two things about the SQL are load bearing. Postgres refuses `FOR UPDATE` on a
+query that has a window function in it, so the numbering is a subquery joined
+back to the table and the lock is `FOR UPDATE OF t2 SKIP LOCKED` — naming the
+row source, because the subquery is not lockable. And **priority still decides
+the order within a workspace**: the fairness is between workspaces, not inside
+one, so a logo still beats a recheck for the tenant that queued both.
+
+`test/tenancy-queue.integration.spec.ts` pins both halves against a real
+Postgres, including the starvation case that motivated it.
 
 ## The invitation flow stays off, deliberately
 

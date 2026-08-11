@@ -65,8 +65,9 @@ const ours = {
 };
 
 async function parked(subject: { contactId?: string; companyId?: string }) {
-	return db.agentTask.create({
+	return await db.agentTask.create({
 		data: {
+			organizationId: TEST_TENANT,
 			...subject,
 			kind: "identify",
 			reason: `record-delete-spec (${suffix})`,
@@ -133,6 +134,7 @@ describe("deleting a contact", () => {
 
 			await db.agentEvent.create({
 				data: {
+					organizationId: TEST_TENANT,
 					id: `evt-${suffix}`,
 					sessionId: `ses-${suffix}`,
 					contactId,

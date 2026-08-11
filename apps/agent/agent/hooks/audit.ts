@@ -1,4 +1,4 @@
-import { db } from "@crm/db";
+import { db, tenantId } from "@crm/db";
 import { defineHook } from "eve/hooks";
 import { currentFocus } from "../lib/focus";
 
@@ -14,6 +14,7 @@ export default defineHook({
 					data: [
 						{
 							id,
+							organizationId: tenantId(),
 							sessionId: ctx.session.id,
 							contactId: currentFocus().contactId,
 							type: event.type,

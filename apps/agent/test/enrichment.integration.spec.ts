@@ -23,14 +23,14 @@ beforeEach(scoped(clear));
 afterEach(scoped(clear));
 
 async function company() {
-	return db.company.create({
+	return await db.company.create({
 		data: { organizationId: TEST_TENANT, name: "Lifecycle", domain },
 		select: { id: true },
 	});
 }
 
 async function contact() {
-	return db.contact.create({
+	return await db.contact.create({
 		data: {
 			organizationId: TEST_TENANT,
 			firstName: "Lifecycle",

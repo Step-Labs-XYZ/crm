@@ -1,7 +1,8 @@
-import { db, Prisma } from "@crm/db";
+import { db, Prisma, tenantId } from "@crm/db";
 
 export type LeasedTask = {
 	id: string;
+	organizationId: string;
 	contactId: string | null;
 	companyId: string | null;
 	kind: string;
@@ -14,6 +15,7 @@ export type LeasedTask = {
 
 export type TaskSubject = {
 	id: string;
+	organizationId: string;
 	contactId: string | null;
 	companyId: string | null;
 	kind: string;
@@ -38,6 +40,12 @@ export async function claimDue(
 
 	const match = Prisma.sql`t2.kind ${"only" in kinds ? Prisma.sql`IN` : Prisma.sql`NOT IN`} (${Prisma.join(list)})`;
 
+	const eligible = Prisma.sql`
+		"finishedAt" IS NULL
+		AND "dueAt" <= ${now}
+		AND ("leasedUntil" IS NULL OR "leasedUntil" < ${now})
+		AND "attempts" < ${MAX_ATTEMPTS}`;
+
 	const claimed = await db.$queryRaw<LeasedTask[]>`
 		UPDATE "agentTask" AS t
 		SET "leasedUntil" = ${until},
@@ -45,23 +53,44 @@ export async function claimDue(
 			"attempts" = t."attempts" + 1
 		FROM (
 			SELECT t2.id FROM "agentTask" AS t2
+			JOIN (
+				SELECT id, ROW_NUMBER() OVER (
+					PARTITION BY "organizationId"
+					ORDER BY "priority" DESC, "dueAt" ASC
+				) AS seat
+				FROM "agentTask"
+				WHERE ${eligible} AND kind ${"only" in kinds ? Prisma.sql`IN` : Prisma.sql`NOT IN`} (${Prisma.join(list)})
+			) AS turn ON turn.id = t2.id
 			WHERE t2."finishedAt" IS NULL
 				AND t2."dueAt" <= ${now}
 				AND (t2."leasedUntil" IS NULL OR t2."leasedUntil" < ${now})
 				AND t2."attempts" < ${MAX_ATTEMPTS}
 				AND ${match}
-			ORDER BY t2."priority" DESC, t2."dueAt" ASC
+			ORDER BY turn.seat ASC, t2."priority" DESC, t2."dueAt" ASC
 			LIMIT ${limit}
-			FOR UPDATE SKIP LOCKED
+			FOR UPDATE OF t2 SKIP LOCKED
 		) AS due
 		WHERE t.id = due.id
-		RETURNING t.id, t."contactId", t."companyId", t.kind, t.reason,
-			t.budget, t.attempts, t.priority, t."dueAt";
+		RETURNING t.id, t."organizationId", t."contactId", t."companyId", t.kind,
+			t.reason, t.budget, t.attempts, t.priority, t."dueAt";
 	`;
 
 	return claimed.sort(
-		(a, b) => b.priority - a.priority || a.dueAt.getTime() - b.dueAt.getTime(),
+		(a, b) =>
+			seatOf(a, claimed) - seatOf(b, claimed) ||
+			b.priority - a.priority ||
+			a.dueAt.getTime() - b.dueAt.getTime(),
 	);
+}
+
+function seatOf(task: LeasedTask, claimed: readonly LeasedTask[]): number {
+	return claimed
+		.filter((other) => other.organizationId === task.organizationId)
+		.sort(
+			(a, b) =>
+				b.priority - a.priority || a.dueAt.getTime() - b.dueAt.getTime(),
+		)
+		.indexOf(task);
 }
 
 export async function retireExhausted(): Promise<TaskSubject[]> {
@@ -74,7 +103,7 @@ export async function retireExhausted(): Promise<TaskSubject[]> {
 		WHERE t."finishedAt" IS NULL
 			AND t."attempts" >= ${MAX_ATTEMPTS}
 			AND (t."leasedUntil" IS NULL OR t."leasedUntil" < ${now})
-		RETURNING t.id, t."contactId", t."companyId", t.kind;
+		RETURNING t.id, t."organizationId", t."contactId", t."companyId", t.kind;
 	`;
 }
 
@@ -94,16 +123,28 @@ export async function completeTask(
 
 	if (count === 0) return null;
 
-	return db.agentTask.findUnique({
+	return await db.agentTask.findUnique({
 		where: { id: taskId },
-		select: { id: true, contactId: true, companyId: true, kind: true },
+		select: {
+			id: true,
+			organizationId: true,
+			contactId: true,
+			companyId: true,
+			kind: true,
+		},
 	});
 }
 
 export async function taskSubject(taskId: string): Promise<TaskSubject | null> {
-	return db.agentTask.findUnique({
+	return await db.agentTask.findUnique({
 		where: { id: taskId },
-		select: { id: true, contactId: true, companyId: true, kind: true },
+		select: {
+			id: true,
+			organizationId: true,
+			contactId: true,
+			companyId: true,
+			kind: true,
+		},
 	});
 }
 
@@ -144,8 +185,9 @@ export async function scheduleTask(input: {
 		return existing;
 	}
 
-	return db.agentTask.create({
+	return await db.agentTask.create({
 		data: {
+			organizationId: tenantId(),
 			contactId: input.contactId ?? null,
 			companyId: input.companyId ?? null,
 			kind: input.kind,
@@ -159,7 +201,7 @@ export async function scheduleTask(input: {
 }
 
 export async function lastDecision(contactId: string) {
-	return db.agentTask.findFirst({
+	return await db.agentTask.findFirst({
 		where: { contactId },
 		orderBy: { createdAt: "desc" },
 		select: {

@@ -287,7 +287,7 @@ export class ContactsService {
 		const contact = await this.db.$transaction(async (tx) => {
 			await this.allowAgain(tx, email);
 
-			return tx.contact.create({
+			return await tx.contact.create({
 				data: {
 					organizationId: tenantId(),
 					firstName: input.firstName.trim(),

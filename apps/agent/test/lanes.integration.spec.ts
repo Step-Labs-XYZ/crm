@@ -24,8 +24,9 @@ beforeEach(scoped(clear));
 afterEach(scoped(clear));
 
 async function queue(kind: string, priority: number) {
-	return db.agentTask.create({
+	return await db.agentTask.create({
 		data: {
+			organizationId: TEST_TENANT,
 			kind,
 			reason: REASON,
 			dueAt: new Date(Date.now() - 1000),
@@ -37,71 +38,86 @@ async function queue(kind: string, priority: number) {
 }
 
 describe("dispatch lanes", () => {
-	it("keeps a logo out of the research lane and a brief out of the visible one", async () => {
-		const brand = await queue("brand", PRIORITY.brand);
-		const profile = await queue("company-profile", PRIORITY.companyProfile);
+	it(
+		"keeps a logo out of the research lane and a brief out of the visible one",
+		scoped(async () => {
+			const brand = await queue("brand", PRIORITY.brand);
+			const profile = await queue("company-profile", PRIORITY.companyProfile);
 
-		const visible = await claimDue(10, VISIBLE);
-		const research = await claimDue(10, RESEARCH);
+			const visible = await claimDue(10, VISIBLE);
+			const research = await claimDue(10, RESEARCH);
 
-		const visibleIds = visible.map((t) => t.id);
-		const researchIds = research.map((t) => t.id);
+			const visibleIds = visible.map((t) => t.id);
+			const researchIds = research.map((t) => t.id);
 
-		expect(visibleIds).toContain(brand.id);
-		expect(visibleIds).not.toContain(profile.id);
+			expect(visibleIds).toContain(brand.id);
+			expect(visibleIds).not.toContain(profile.id);
 
-		expect(researchIds).toContain(profile.id);
-		expect(researchIds).not.toContain(brand.id);
-	});
+			expect(researchIds).toContain(profile.id);
+			expect(researchIds).not.toContain(brand.id);
+		}),
+	);
 
-	it("a logo is never starved by a queue full of research", async () => {
-		for (let i = 0; i < 30; i += 1) {
-			await queue("identify", PRIORITY.identify);
-		}
+	it(
+		"a logo is never starved by a queue full of research",
+		scoped(async () => {
+			for (let i = 0; i < 30; i += 1) {
+				await queue("identify", PRIORITY.identify);
+			}
 
-		const brand = await queue("brand", PRIORITY.brand);
+			const brand = await queue("brand", PRIORITY.brand);
 
-		const visible = await claimDue(5, VISIBLE);
+			const visible = await claimDue(5, VISIBLE);
 
-		expect(visible.map((t) => t.id)).toContain(brand.id);
-	});
+			expect(visible.map((t) => t.id)).toContain(brand.id);
+		}),
+	);
 
-	it("takes the visible work in priority order", async () => {
-		const portrait = await queue("portrait", PRIORITY.portrait);
-		const brand = await queue("brand", PRIORITY.brand);
+	it(
+		"takes the visible work in priority order",
+		scoped(async () => {
+			const portrait = await queue("portrait", PRIORITY.portrait);
+			const brand = await queue("brand", PRIORITY.brand);
 
-		const claimed = await claimDue(10, VISIBLE);
-		const ordered = claimed
-			.filter((t) => t.id === brand.id || t.id === portrait.id)
-			.map((t) => t.id);
+			const claimed = await claimDue(10, VISIBLE);
+			const ordered = claimed
+				.filter((t) => t.id === brand.id || t.id === portrait.id)
+				.map((t) => t.id);
 
-		expect(ordered).toEqual([brand.id, portrait.id]);
-	});
+			expect(ordered).toEqual([brand.id, portrait.id]);
+		}),
+	);
 
-	it("sends the who-are-we pass to the research lane, ahead of the contacts", async () => {
-		const identify = await queue("identify", PRIORITY.identify);
-		const us = await queue("workspace-profile", PRIORITY.workspace);
+	it(
+		"sends the who-are-we pass to the research lane, ahead of the contacts",
+		scoped(async () => {
+			const identify = await queue("identify", PRIORITY.identify);
+			const us = await queue("workspace-profile", PRIORITY.workspace);
 
-		const visible = await claimDue(10, VISIBLE);
-		const research = await claimDue(10, RESEARCH);
+			const visible = await claimDue(10, VISIBLE);
+			const research = await claimDue(10, RESEARCH);
 
-		expect(visible.map((t) => t.id)).not.toContain(us.id);
+			expect(visible.map((t) => t.id)).not.toContain(us.id);
 
-		const ordered = research
-			.filter((t) => t.id === us.id || t.id === identify.id)
-			.map((t) => t.id);
+			const ordered = research
+				.filter((t) => t.id === us.id || t.id === identify.id)
+				.map((t) => t.id);
 
-		expect(ordered).toEqual([us.id, identify.id]);
-	});
+			expect(ordered).toEqual([us.id, identify.id]);
+		}),
+	);
 
-	it("leases the two lanes independently", async () => {
-		const brand = await queue("brand", PRIORITY.brand);
+	it(
+		"leases the two lanes independently",
+		scoped(async () => {
+			const brand = await queue("brand", PRIORITY.brand);
 
-		await claimDue(10, VISIBLE);
-		const again = await claimDue(10, RESEARCH);
+			await claimDue(10, VISIBLE);
+			const again = await claimDue(10, RESEARCH);
 
-		expect(again.map((t) => t.id)).not.toContain(brand.id);
-	});
+			expect(again.map((t) => t.id)).not.toContain(brand.id);
+		}),
+	);
 });
 
 describe("kind vocabulary", () => {

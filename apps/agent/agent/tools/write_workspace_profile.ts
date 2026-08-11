@@ -1,4 +1,4 @@
-import { db } from "@crm/db";
+import { db, tenantId } from "@crm/db";
 import {
 	MAX_LINE,
 	MAX_NARRATIVE,
@@ -56,7 +56,7 @@ export default defineTool({
 			};
 		}
 
-		const profile = await writeWorkspaceProfile(db, {
+		const profile = await writeWorkspaceProfile(db, tenantId(), {
 			website: us.website,
 			narrative,
 			sections: {
