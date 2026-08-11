@@ -434,8 +434,9 @@ model Deal {
 
   contacts   DealContact[]
   activities Activity[]
-  createdAt  DateTime      @default(now())
-  updatedAt  DateTime      @updatedAt
+  handoff    InvestorLeadHandoff?
+  createdAt  DateTime             @default(now())
+  updatedAt  DateTime             @updatedAt
 
   @@index([organizationId])
   @@index([companyId])
@@ -694,13 +695,16 @@ model AppSetting {
 }
 
 model Organization {
-  id          String       @id
-  name        String
-  slug        String
-  logo        String?
-  createdAt   DateTime
-  metadata    String?
-  website     String?
+  id        String   @id
+  name      String
+  slug      String
+  logo      String?
+  createdAt DateTime
+  metadata  String?
+  website   String?
+
+  assetManagerId String?
+
   members     Member[]
   invitations Invitation[]
 
@@ -721,6 +725,7 @@ model Organization {
   enrichments        CompanyEnrichment[]
   suppressedDomains  SuppressedDomain[]
   suppressedContacts SuppressedContact[]
+  leadHandoffs       InvestorLeadHandoff[]
   conversations      AgentConversation[]
   profile            WorkspaceProfile?
 
@@ -738,6 +743,35 @@ model AllowedSignIn {
   @@unique([entry])
   @@index([organizationId])
   @@map("allowedSignIn")
+}
+
+enum HandoffState {
+  PENDING
+  SENT
+  FAILED
+  REFUSED
+}
+
+model InvestorLeadHandoff {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  dealId String @unique
+  deal   Deal   @relation(fields: [dealId], references: [id], onDelete: Cascade)
+
+  leadId String?
+
+  state     HandoffState @default(PENDING)
+  attempts  Int          @default(0)
+  lastError String?
+  sentAt    DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([organizationId, state])
+  @@map("investorLeadHandoff")
 }
 
 model WorkspaceProfile {

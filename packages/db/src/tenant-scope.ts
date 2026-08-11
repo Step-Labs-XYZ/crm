@@ -18,6 +18,7 @@ export const TENANT_MODELS = [
 	"CompanyEnrichment",
 	"SuppressedContact",
 	"SuppressedDomain",
+	"InvestorLeadHandoff",
 ] as const;
 
 export type TenantModel = (typeof TENANT_MODELS)[number];

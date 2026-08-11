@@ -19,6 +19,7 @@ import { contactListInput, contactIdInput, contactCreateInput, contactUpdateArgs
 import { conversationListInput, conversationEventsInput, conversationSaveInput, conversationIdInput } from "../conversations/conversations.contracts";
 import { dashboardSummaryInput } from "../dashboard/dashboard.contracts";
 import { dealListInput, dealIdInput, dealCreateInput, dealUpdateArgs, setStageInput } from "../deals/deals.contracts";
+import { retryHandoffInput } from "../fundreporting/fundreporting.contracts";
 import { setAutoCreateInput, suppressDomainInput, threadInput, calendarEventInput } from "../google/google.contracts";
 import { setAgentModelInput, setResearchKeyInput } from "../settings/settings.contracts";
 import { ssoProviderListInput, registerSsoProviderInput, deleteSsoProviderInput } from "../sso/sso.contracts";
@@ -29,6 +30,7 @@ import type { ContactsRouter } from "../contacts/contacts.router";
 import type { ConversationsRouter } from "../conversations/conversations.router";
 import type { DashboardRouter } from "../dashboard/dashboard.router";
 import type { DealsRouter } from "../deals/deals.router";
+import type { FundreportingRouter } from "../fundreporting/fundreporting.router";
 import type { GoogleRouter } from "../google/google.router";
 import type { SearchRouter } from "../search/search.router";
 import type { SettingsRouter } from "../settings/settings.router";
@@ -144,6 +146,13 @@ const appRouter = t.router({
     setStage: publicProcedure
       .input(setStageInput)
       .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<DealsRouter["setStage"]>>)
+    }),
+  fundreporting: t.router({
+    outstanding: publicProcedure
+      .query(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<FundreportingRouter["outstanding"]>>),
+    retry: publicProcedure
+      .input(retryHandoffInput)
+      .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<FundreportingRouter["retry"]>>)
     }),
   google: t.router({
     status: publicProcedure
