@@ -1,4 +1,4 @@
-import type { Db } from "@crm/db";
+import { type Db, withTenant } from "@crm/db";
 import { Injectable } from "@nestjs/common";
 import { TRPCError } from "@trpc/server";
 import type {
@@ -34,7 +34,8 @@ export class AuthMiddleware implements TRPCMiddleware {
 		}
 
 		const nextCtx: AuthedTrpcContext = { ...ctx, user, organizationId };
-		return opts.next({ ctx: nextCtx });
+
+		return withTenant(organizationId, () => opts.next({ ctx: nextCtx }));
 	}
 
 	private async tenantOf(

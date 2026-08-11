@@ -1,4 +1,4 @@
-import { ActivityType, type Db, type Prisma } from "@crm/db";
+import { ActivityType, type Db, type Prisma, tenantId } from "@crm/db";
 import {
 	BadRequestException,
 	Injectable,
@@ -129,6 +129,7 @@ export class ActivitiesService {
 
 		const activity = await this.db.activity.create({
 			data: {
+				organizationId: tenantId(),
 				type: input.type,
 				subject: blankToNull(input.subject ?? ""),
 				body: blankToNull(input.body ?? ""),

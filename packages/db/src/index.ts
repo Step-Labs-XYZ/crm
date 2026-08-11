@@ -1,5 +1,6 @@
 export {
 	type Db,
+	type DbTransaction,
 	db,
 	type PrismaLogRecord,
 	type PrismaLogSink,
@@ -13,3 +14,17 @@ export type {
 	FactEvidence,
 	WorkspaceProfileSections,
 } from "./json";
+export { soleTenantId, withSoleTenant } from "./sole-tenant";
+export {
+	acrossTenants,
+	currentScope,
+	currentTenant,
+	isTenantModel,
+	MissingTenantScopeError,
+	setSingleTenantProcess,
+	TENANT_MODELS,
+	type TenantModel,
+	type TenantScope,
+	tenantId,
+	withTenant,
+} from "./tenant-scope";

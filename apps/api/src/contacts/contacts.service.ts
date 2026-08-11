@@ -1,11 +1,13 @@
 import {
 	type ContactBriefSections,
 	type Db,
+	type DbTransaction,
 	type FactEvidence,
 	FactStatus,
 	type Prisma,
 	Prisma as PrismaNamespace,
 	type RecordSource,
+	tenantId,
 } from "@crm/db";
 import {
 	ConflictException,
@@ -287,6 +289,7 @@ export class ContactsService {
 
 			return tx.contact.create({
 				data: {
+					organizationId: tenantId(),
 					firstName: input.firstName.trim(),
 					lastName: blankToNull(input.lastName ?? ""),
 					email,
@@ -410,7 +413,7 @@ export class ContactsService {
 	}
 
 	private async allowAgain(
-		tx: Prisma.TransactionClient,
+		tx: DbTransaction,
 		email: string | null,
 	): Promise<void> {
 		if (!email) return;

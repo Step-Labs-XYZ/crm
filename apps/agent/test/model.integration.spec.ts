@@ -7,14 +7,22 @@ import {
 	expect,
 	it,
 } from "bun:test";
-import { db, type Prisma } from "@crm/db";
+import { db, type Prisma, withTenant } from "@crm/db";
 import {
 	DEFAULT_AGENT_MODEL,
 	readAgentModel,
 	SETTINGS_ID,
 	writeAgentModel,
 } from "@crm/db/settings";
+import { WORKSPACE_ID } from "@crm/db/workspace";
 import { selectedModel } from "../agent/lib/model";
+
+const TEST_TENANT = WORKSPACE_ID;
+
+const scoped =
+	<T>(run: () => Promise<T>) =>
+	() =>
+		withTenant(TEST_TENANT, run);
 
 async function clear() {
 	await db.appSetting.deleteMany({ where: { id: SETTINGS_ID } });
@@ -31,8 +39,8 @@ beforeAll(async () => {
 	saved = await db.appSetting.findUnique({ where: { id: SETTINGS_ID } });
 });
 
-beforeEach(clear);
-afterEach(clear);
+beforeEach(scoped(clear));
+afterEach(scoped(clear));
 
 afterAll(async () => {
 	if (saved) await db.appSetting.create({ data: saved });

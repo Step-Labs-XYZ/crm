@@ -1,4 +1,4 @@
-import { db, type Prisma } from "@crm/db";
+import { type Db, db } from "@crm/db";
 import {
 	bootstrapSignInEntries,
 	hasSignInAllowList,
@@ -7,7 +7,7 @@ import {
 } from "./workspace";
 
 export type TenantClient = Pick<
-	Prisma.TransactionClient,
+	Db,
 	"allowedSignIn" | "organization" | "member" | "user"
 >;
 

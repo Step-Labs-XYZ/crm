@@ -1,6 +1,14 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { db, EnrichmentStatus } from "@crm/db";
+import { db, EnrichmentStatus, withTenant } from "@crm/db";
+import { WORKSPACE_ID } from "@crm/db/workspace";
 import { settle } from "../agent/lib/enrichment";
+
+const TEST_TENANT = WORKSPACE_ID;
+
+const scoped =
+	<T>(run: () => Promise<T>) =>
+	() =>
+		withTenant(TEST_TENANT, run);
 
 /**
  * An install with no Context key still creates companies, and a `brand` task
@@ -17,14 +25,17 @@ import { settle } from "../agent/lib/enrichment";
  */
 const created: string[] = [];
 
-afterEach(async () => {
-	if (created.length === 0) return;
-	await db.company.deleteMany({ where: { id: { in: created.splice(0) } } });
-});
+afterEach(
+	scoped(async () => {
+		if (created.length === 0) return;
+		await db.company.deleteMany({ where: { id: { in: created.splice(0) } } });
+	}),
+);
 
 async function company(status: EnrichmentStatus) {
 	const row = await db.company.create({
 		data: {
+			organizationId: TEST_TENANT,
 			name: "Keyless Probe",
 			domain: `keyless-${created.length}-${status}.test`.toLowerCase(),
 			enrichmentStatus: status,
@@ -45,31 +56,40 @@ const statusOf = async (id: string) =>
 	)?.enrichmentStatus;
 
 describe("a brand task with no key", () => {
-	it("leaves the company where the sweep will find it again", async () => {
-		const id = await company(EnrichmentStatus.PENDING);
+	it(
+		"leaves the company where the sweep will find it again",
+		scoped(async () => {
+			const id = await company(EnrichmentStatus.PENDING);
 
-		await settle(
-			{ companyId: id },
-			EnrichmentStatus.SKIPPED,
-			"Context.dev is not configured, so there is nowhere to look.",
-		);
+			await settle(
+				{ companyId: id },
+				EnrichmentStatus.SKIPPED,
+				"Context.dev is not configured, so there is nowhere to look.",
+			);
 
-		expect(await statusOf(id)).toBe(EnrichmentStatus.PENDING);
-	});
+			expect(await statusOf(id)).toBe(EnrichmentStatus.PENDING);
+		}),
+	);
 
-	it("does not strand a company that had already failed", async () => {
-		const id = await company(EnrichmentStatus.FAILED);
+	it(
+		"does not strand a company that had already failed",
+		scoped(async () => {
+			const id = await company(EnrichmentStatus.FAILED);
 
-		await settle({ companyId: id }, EnrichmentStatus.SKIPPED, "no key");
+			await settle({ companyId: id }, EnrichmentStatus.SKIPPED, "no key");
 
-		expect(await statusOf(id)).toBe(EnrichmentStatus.FAILED);
-	});
+			expect(await statusOf(id)).toBe(EnrichmentStatus.FAILED);
+		}),
+	);
 
-	it("still settles a lookup that genuinely ran", async () => {
-		const id = await company(EnrichmentStatus.RUNNING);
+	it(
+		"still settles a lookup that genuinely ran",
+		scoped(async () => {
+			const id = await company(EnrichmentStatus.RUNNING);
 
-		await settle({ companyId: id }, EnrichmentStatus.SKIPPED, "No brand.");
+			await settle({ companyId: id }, EnrichmentStatus.SKIPPED, "No brand.");
 
-		expect(await statusOf(id)).toBe(EnrichmentStatus.SKIPPED);
-	});
+			expect(await statusOf(id)).toBe(EnrichmentStatus.SKIPPED);
+		}),
+	);
 });

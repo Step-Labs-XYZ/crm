@@ -1,4 +1,4 @@
-import { ActivityType, db } from "@crm/db";
+import { ActivityType, db, tenantId } from "@crm/db";
 import { defineTool } from "eve/tools";
 import { z } from "zod";
 import { extract } from "../lib/context-dev";
@@ -92,6 +92,7 @@ export default defineTool({
 
 		const activity = await db.activity.create({
 			data: {
+				organizationId: tenantId(),
 				type: ActivityType.ENRICHMENT,
 				subject: `Research brief — ${company.name}`,
 				body: formatBrief(result.data),

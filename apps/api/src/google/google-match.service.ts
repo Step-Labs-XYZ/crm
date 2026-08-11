@@ -1,5 +1,5 @@
 import { tenantSignInDomains } from "@crm/auth/tenant";
-import { type Db, RecordSource } from "@crm/db";
+import { type Db, RecordSource, tenantId } from "@crm/db";
 import { Injectable, Logger } from "@nestjs/common";
 import { AgentTriggerService } from "../agent/agent-trigger.service";
 import { CompanyDirectoryService } from "../companies/company-directory.service";
@@ -230,13 +230,24 @@ export class GoogleMatchService {
 		const { firstName, lastName } = splitName(person.name, person.email);
 
 		const existing = await this.db.contact.findUnique({
-			where: { email: person.email },
+			where: {
+				organizationId_email: {
+					organizationId: tenantId(),
+					email: person.email,
+				},
+			},
 			select: { id: true },
 		});
 
 		const contact = await this.db.contact.upsert({
-			where: { email: person.email },
+			where: {
+				organizationId_email: {
+					organizationId: tenantId(),
+					email: person.email,
+				},
+			},
 			create: {
+				organizationId: tenantId(),
 				firstName,
 				lastName,
 				email: person.email,

@@ -1,5 +1,11 @@
 import { onSignedIn } from "@crm/auth";
-import { type Db, EnrichmentStatus, type Prisma } from "@crm/db";
+import {
+	currentTenant,
+	type Db,
+	EnrichmentStatus,
+	type Prisma,
+	withTenant,
+} from "@crm/db";
 import { PRIORITY } from "@crm/db/agent-tasks";
 import { readWorkspaceIdentity } from "@crm/db/workspace";
 import { CACHE_MANAGER } from "@nestjs/cache-manager";
@@ -57,14 +63,28 @@ export class BackfillService implements OnModuleInit {
 	) {}
 
 	onModuleInit(): void {
-		onSignedIn(() => {
-			void this.auto();
+		onSignedIn((user) => {
+			void this.autoForUser(user.id);
 		});
 	}
 
+	private async autoForUser(userId: string): Promise<void> {
+		const member = await this.db.member.findFirst({
+			where: { userId },
+			select: { organizationId: true },
+			orderBy: { createdAt: "asc" },
+		});
+
+		if (!member) return;
+
+		await withTenant(member.organizationId, () => this.auto());
+	}
+
 	async auto(): Promise<{ started: boolean }> {
-		if (await this.cache.get(AUTO_KEY)) return { started: false };
-		await this.cache.set(AUTO_KEY, true, AUTO_EVERY_MS);
+		const key = `${AUTO_KEY}:${currentTenant() ?? "none"}`;
+
+		if (await this.cache.get(key)) return { started: false };
+		await this.cache.set(key, true, AUTO_EVERY_MS);
 
 		void (async () => {
 			try {

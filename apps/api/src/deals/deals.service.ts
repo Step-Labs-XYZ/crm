@@ -4,6 +4,7 @@ import {
 	type DealStage,
 	type Prisma,
 	Prisma as PrismaNamespace,
+	tenantId,
 } from "@crm/db";
 import {
 	BadRequestException,
@@ -197,6 +198,7 @@ export class DealsService {
 		try {
 			const deal = await this.db.deal.create({
 				data: {
+					organizationId: tenantId(),
 					name: input.name.trim(),
 					companyId: input.companyId,
 					ownerId: input.ownerId,
@@ -313,6 +315,7 @@ export class DealsService {
 			}),
 			this.db.activity.create({
 				data: {
+					organizationId: tenantId(),
 					type: ActivityType.STAGE_CHANGE,
 					subject: "Stage changed",
 					body: closedReason ?? null,

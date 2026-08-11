@@ -184,7 +184,12 @@ export class GoogleConnectionService {
 		if (!options.purge) return { domain: normalised, purged: 0 };
 
 		const company = await this.db.company.findUnique({
-			where: { domain: normalised },
+			where: {
+				organizationId_domain: {
+					organizationId,
+					domain: normalised,
+				},
+			},
 			select: { id: true },
 		});
 

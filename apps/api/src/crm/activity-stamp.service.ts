@@ -1,4 +1,10 @@
-import { type Db, type Prisma, Prisma as PrismaNamespace } from "@crm/db";
+import {
+	type Db,
+	type DbTransaction,
+	type Prisma,
+	Prisma as PrismaNamespace,
+	tenantId,
+} from "@crm/db";
 import { Injectable, Logger } from "@nestjs/common";
 import { InjectDatabase } from "../database/database.constants";
 
@@ -88,7 +94,7 @@ export class ActivityStampService {
 
 	async targetsOf(
 		where: Prisma.ActivityWhereInput,
-		client: Prisma.TransactionClient = this.db,
+		client: DbTransaction = this.db,
 	): Promise<StampTargets> {
 		const [companies, contacts, deals] = await Promise.all([
 			client.activity.groupBy({ by: ["companyId"], where }),
@@ -139,52 +145,88 @@ export class ActivityStampService {
 		const record = PrismaNamespace.raw(`"${table}"`);
 		const key = PrismaNamespace.raw(`"${column}"`);
 
+		const organizationId = tenantId();
+
 		return this.db.$executeRaw`
 			UPDATE ${record} r
 			SET "lastActivityAt" = (
-				SELECT MAX(a."createdAt") FROM "activity" a WHERE a.${key} = r.id
+				SELECT MAX(a."createdAt") FROM "activity" a
+				WHERE a.${key} = r.id AND a."organizationId" = ${organizationId}
 			)
-			WHERE r.id IN (${PrismaNamespace.join(ids)})`;
+			WHERE r.id IN (${PrismaNamespace.join(ids)})
+			AND r."organizationId" = ${organizationId}`;
 	}
 
 	async recomputeAll(): Promise<void> {
+		const organizationId = tenantId();
+
 		await this.db.$transaction([
 			this.db.$executeRaw`
 				UPDATE "company" c
 				SET "lastActivityAt" = a.max
 				FROM (
 					SELECT "companyId" AS id, MAX("createdAt") AS max
-					FROM "activity" WHERE "companyId" IS NOT NULL GROUP BY "companyId"
+					FROM "activity"
+					WHERE "companyId" IS NOT NULL
+					AND "organizationId" = ${organizationId}
+					GROUP BY "companyId"
 				) a
-				WHERE c.id = a.id AND c."lastActivityAt" IS DISTINCT FROM a.max`,
+				WHERE c.id = a.id
+				AND c."organizationId" = ${organizationId}
+				AND c."lastActivityAt" IS DISTINCT FROM a.max`,
 			this.db.$executeRaw`
 				UPDATE "company" SET "lastActivityAt" = NULL
 				WHERE "lastActivityAt" IS NOT NULL
-				AND id NOT IN (SELECT "companyId" FROM "activity" WHERE "companyId" IS NOT NULL)`,
+				AND "organizationId" = ${organizationId}
+				AND id NOT IN (
+					SELECT "companyId" FROM "activity"
+					WHERE "companyId" IS NOT NULL
+					AND "organizationId" = ${organizationId}
+				)`,
 			this.db.$executeRaw`
 				UPDATE "contact" c
 				SET "lastActivityAt" = a.max
 				FROM (
 					SELECT "contactId" AS id, MAX("createdAt") AS max
-					FROM "activity" WHERE "contactId" IS NOT NULL GROUP BY "contactId"
+					FROM "activity"
+					WHERE "contactId" IS NOT NULL
+					AND "organizationId" = ${organizationId}
+					GROUP BY "contactId"
 				) a
-				WHERE c.id = a.id AND c."lastActivityAt" IS DISTINCT FROM a.max`,
+				WHERE c.id = a.id
+				AND c."organizationId" = ${organizationId}
+				AND c."lastActivityAt" IS DISTINCT FROM a.max`,
 			this.db.$executeRaw`
 				UPDATE "contact" SET "lastActivityAt" = NULL
 				WHERE "lastActivityAt" IS NOT NULL
-				AND id NOT IN (SELECT "contactId" FROM "activity" WHERE "contactId" IS NOT NULL)`,
+				AND "organizationId" = ${organizationId}
+				AND id NOT IN (
+					SELECT "contactId" FROM "activity"
+					WHERE "contactId" IS NOT NULL
+					AND "organizationId" = ${organizationId}
+				)`,
 			this.db.$executeRaw`
 				UPDATE "deal" d
 				SET "lastActivityAt" = a.max
 				FROM (
 					SELECT "dealId" AS id, MAX("createdAt") AS max
-					FROM "activity" WHERE "dealId" IS NOT NULL GROUP BY "dealId"
+					FROM "activity"
+					WHERE "dealId" IS NOT NULL
+					AND "organizationId" = ${organizationId}
+					GROUP BY "dealId"
 				) a
-				WHERE d.id = a.id AND d."lastActivityAt" IS DISTINCT FROM a.max`,
+				WHERE d.id = a.id
+				AND d."organizationId" = ${organizationId}
+				AND d."lastActivityAt" IS DISTINCT FROM a.max`,
 			this.db.$executeRaw`
 				UPDATE "deal" SET "lastActivityAt" = NULL
 				WHERE "lastActivityAt" IS NOT NULL
-				AND id NOT IN (SELECT "dealId" FROM "activity" WHERE "dealId" IS NOT NULL)`,
+				AND "organizationId" = ${organizationId}
+				AND id NOT IN (
+					SELECT "dealId" FROM "activity"
+					WHERE "dealId" IS NOT NULL
+					AND "organizationId" = ${organizationId}
+				)`,
 		]);
 	}
 }
