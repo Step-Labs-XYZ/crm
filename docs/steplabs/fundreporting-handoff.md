@@ -113,20 +113,43 @@ So the outcome is a row, not an exception:
 reason, and `fundreporting.retry` re-runs one. The distinction between the two
 failure states matters: one is a wait, the other is a person's decision.
 
-## What cannot be verified yet
+## What has been checked against the real API, and what has not
 
-Everything above is tested against a fake platform — the mapping, the
-idempotency, the refusals, the retry. **None of it has been run against Xano**,
-because there are no credentials: FundReporting's own `AGENTS.md` says `.env*` is
-gitignored, there is no `.env.example`, and you have to ask the client.
+`fundreporting-v2/.env.local` holds **half** of what this needs, so part of the
+contract is now confirmed rather than inferred.
 
-Three things need checking the first time real credentials exist, and each could
-change the mapper:
+**Confirmed, by unauthenticated read-only calls against their Xano host:**
 
-1. **Whether `PLATFORM_SERVICE_TOKEN` may write `investor_lead` at all.** It is
-   used in exactly one route in their codebase today, for a cron.
-2. **The exact field names on `investor_lead`.** They are read here from their
-   own UI and proxy routes, which is good evidence but not a schema.
-3. **Whether `asset_manager` takes the entity id we think it does.** This is the
-   open question in the tenant-key conversation, and it is the one thing that
-   decides where a won deal lands.
+| Call | Answer | What it settles |
+| --- | --- | --- |
+| `GET /investor_lead` | `401 ERROR_CODE_UNAUTHORIZED` | The path is right and it requires auth |
+| `GET /nonsense_endpoint` | `404` | So the 401 above is the endpoint, not a blanket refusal |
+| `GET /investor_lead?asset_manager=1` | `400 "Not a valid UUID."` | The parameter is real, it is validated, and **it is a UUID** |
+
+That last one is the useful one, and it changed the code: a workspace whose
+`assetManagerId` is not a UUID is refused **before** any call goes out, with a
+sentence somebody can act on, rather than being sent and coming back as an
+opaque 400.
+
+**Still missing: `PLATFORM_SERVICE_TOKEN`.** It is not in `.env.local` — the file
+has `PLATFORM_API_URL`, `XANO_API_URL` and `XANO_PROXY_SECRET`, and that third
+one is not a substitute: it is the shared secret for their *login* proxy
+(`request-code`, `verify-code`), and what it mints is a **user's** session token
+after an emailed code. A background handoff cannot log in as a person.
+
+So two things are still needed before this can run for real, and only one of them
+is a credential:
+
+1. **A `PLATFORM_SERVICE_TOKEN` that may write `investor_lead`**, or a decision
+   that the handoff should authenticate some other way. Their own codebase uses
+   that variable in exactly one route, for a cron, so the pattern exists but is
+   barely exercised.
+2. **The asset-manager UUID for each workspace.** We now know the shape; what we
+   do not have is which UUID belongs to which asset manager. That is the
+   tenant-key conversation, and it is the one thing that decides where a won deal
+   lands.
+
+The field names on `investor_lead` are still read from their UI and proxy routes
+rather than from a schema. The first authenticated call will confirm or correct
+them, and the mapper is one pure file with no I/O precisely so that correcting it
+is cheap.
