@@ -198,7 +198,11 @@ beforeAll(
 				contactId: paulaId,
 				attendees: {
 					create: [
-						{ email: `paula.marchetti@${domain}`, name: "Paula Marchetti" },
+						{
+							organization: { connect: { id: TEST_TENANT } },
+							email: `paula.marchetti@${domain}`,
+							name: "Paula Marchetti",
+						},
 					],
 				},
 			},

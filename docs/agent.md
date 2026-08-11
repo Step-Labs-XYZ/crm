@@ -515,15 +515,25 @@ one row rides in front of every question a rep asks.
 
 ## What the agent may read, and what may leave
 
-> **This fork is multi-tenant.** A session is scoped to one workspace — the
-> tenant rides in `lib/focus.ts` and `@crm/db` resolves the ambient scope from
-> it — so "everything" now means everything *in that workspace*. The reasoning
-> below is upstream's and has not been revisited for a CRM holding several asset
-> managers. See [`docs/steplabs/tenancy.md`](./steplabs/tenancy.md).
+It may read **everything in the workspace the session was opened on**, including
+full email bodies — a signature block is the best source of a job title there
+is. Upstream justified that by the install being single tenant; this fork serves
+several asset managers, so the justification is now the *scope* rather than the
+install: a session belongs to one workspace and the reads are filtered to it
+before they reach the database. See
+[`docs/steplabs/tenancy.md`](./steplabs/tenancy.md) for the mechanism.
 
-It may read **everything**, including full email bodies — single-tenant internal
-tool, and a signature block is the best source of a job title there is. The
-boundary is egress, and it is three rules:
+- **The workspace comes from the caller, never from the message.** A dispatched
+  task carries it in `taskAuth`; a rep carries it in the bridge token, minted
+  from their server-side session. `repFromCrm` then checks the claimed workspace
+  against a `Member` row before the session is allowed to start, so a token that
+  names a workspace its subject does not belong to is refused rather than
+  believed.
+- **A session with no workspace reads nothing.** There is no fallback and no
+  "the only one" — every query against a scoped model refuses. That is what
+  makes the boundary a property of the code rather than of the prompt.
+
+Beyond that the boundary is egress, and it is three rules:
 
 1. No customer text in a third-party query. Derived questions only.
 2. Nothing from a mailbox into `/workspace`. The sandbox has a different

@@ -106,10 +106,12 @@ Scoped in this change:
 
 **Not scoped yet, and each is its own feature:**
 
-- **The agent's read boundary.** It is scoped to one workspace now, but
-  [`docs/agent.md`](../agent.md) still justifies its permission to read
-  everything — including full email bodies — by the install being single tenant.
-  The mechanism is fixed; the *justification* has not been revisited.
+- **`SuppressedContact` and `SuppressedDomain` are still global.** Their keys are
+  unique across the install, so one asset manager suppressing `acme.com` hides it
+  from every other one. This is the sharpest of the remaining gaps because it is
+  a *write* by one tenant changing what another tenant sees.
+- **`MailboxSync`** is keyed on the user, so it follows their workspace, but it
+  carries no column of its own.
 - **`sso.signInOptions`** is the one public procedure, and it has no session to
   take a tenant from — so it lists every provider on the install. It returns only
   a provider id and a display name, never a secret, but it does let a stranger
@@ -212,6 +214,42 @@ reach, so the ambient scope is resolved from eve's own session state instead.
   `drainAll` runs inside `acrossTenants(…)`. Each claimed row is then handled
   inside `withTenant(task.organizationId, …)`, so the scan is global and the work
   never is.
+
+### The read boundary
+
+`docs/agent.md` used to grant the agent everything and justify it in those
+words — *single-tenant internal tool*. That premise is gone, so the justification
+had to move rather than be deleted: the agent still reads everything, and what
+"everything" means is now **the workspace the session was opened on**.
+
+That is a property of the code, not of the prompt. Seven more models — the ones
+an agent session can actually reach — carry a tenant column and sit in the scoped
+set: `ContactFact`, `ContactBrief`, `EmailThread`, `EmailMessage`,
+`CalendarEvent`, `CalendarAttendee` and `CompanyEnrichment`. Before that, a
+session correctly scoped to one asset manager could still read another's mail,
+because mail was not a scoped model.
+
+- **An email thread and a calendar event can be filed against nobody**, so
+  neither could be scoped through a join to a company or a contact — those rows
+  would have become invisible to the workspace that synced them. Each carries its
+  own column.
+- **The bridge is checked, not trusted.** `repFromCrm` reads the workspace off
+  the token and then looks for a `Member` row before letting the session start,
+  so a token naming a workspace its subject does not belong to is refused. The
+  claim is minted from the rep's server-side session in the first place; the
+  check is the second lock on the same door.
+- **A token that names no workspace is refused too.** There is no "the only one"
+  fallback anywhere in this design, and this is the place it would have been
+  most tempting.
+- **`skills/data-boundaries.md` is the agent's own copy of the rule** and says
+  the same thing in the agent's own voice, including what to do when a record it
+  was told about comes back missing: that record belongs to somebody else, so say
+  so and stop rather than looking for another way to it.
+
+`test/read-boundary.integration.spec.ts` puts two asset managers in the database
+with a thread, a message and a fact each, and pins that a session on one reads
+none of the other's — through the real `readCrmHistory`, `readCompanyHistory`
+and `searchCrm`, not just through Prisma.
 
 ### One workspace's backlog must not starve another's
 
