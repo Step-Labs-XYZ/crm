@@ -1,7 +1,7 @@
 import {
 	ActivityType,
 	type Db,
-	type DealStage,
+	DealStage,
 	type Prisma,
 	Prisma as PrismaNamespace,
 	tenantId,
@@ -18,6 +18,7 @@ import {
 } from "../crm/activity-stamp.service";
 import { fromCents, toCents } from "../crm/values";
 import { InjectDatabase } from "../database/database.constants";
+import { LeadHandoffService } from "../fundreporting/lead-handoff.service";
 import {
 	countsByKey,
 	FACET_ALL,
@@ -81,6 +82,7 @@ export class DealsService {
 	constructor(
 		@InjectDatabase() private readonly db: Db,
 		private readonly stamp: ActivityStampService,
+		private readonly handoff: LeadHandoffService,
 	) {}
 
 	async list(input: DealListInput) {
@@ -332,6 +334,17 @@ export class DealsService {
 			{ companyId: deal.companyId, dealId: deal.id },
 			new Date(),
 		);
+
+		if (input.stage === DealStage.CLOSED_WON) {
+			void this.handoff
+				.onDealWon(deal.id)
+				.catch((error: unknown) =>
+					this.logger.error(
+						{ message: "Handing the won deal off threw", dealId: deal.id },
+						error instanceof Error ? error.stack : String(error),
+					),
+				);
+		}
 
 		this.logger.log({
 			message: "Deal stage changed",

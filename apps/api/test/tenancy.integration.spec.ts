@@ -14,7 +14,6 @@ const userId = `${suffix}-rep`;
 
 type Seeded = { companyId: string; contactId: string; dealId: string };
 
-let alpha: Seeded;
 let beta: Seeded;
 
 async function seedTenant(organizationId: string) {
@@ -83,7 +82,7 @@ beforeAll(async () => {
 		data: { id: userId, name: "Rep", email: `${userId}@example.test` },
 	});
 
-	alpha = await seedTenant(A);
+	await seedTenant(A);
 	beta = await seedTenant(B);
 });
 
