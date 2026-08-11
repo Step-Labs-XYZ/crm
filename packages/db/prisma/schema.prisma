@@ -654,18 +654,28 @@ model CalendarAttendee {
 }
 
 model SuppressedDomain {
-  domain    String   @id
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  domain    String
   reason    String?
   createdAt DateTime @default(now())
 
+  @@id([organizationId, domain])
+  @@index([organizationId])
   @@map("suppressedDomain")
 }
 
 model SuppressedContact {
-  email     String   @id
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  email     String
   reason    String?
   createdAt DateTime @default(now())
 
+  @@id([organizationId, email])
+  @@index([organizationId])
   @@map("suppressedContact")
 }
 
@@ -694,23 +704,25 @@ model Organization {
   members     Member[]
   invitations Invitation[]
 
-  allowedSignIns AllowedSignIn[]
-  companies      Company[]
-  contacts       Contact[]
-  deals          Deal[]
-  dealContacts   DealContact[]
-  activities     Activity[]
-  agentTasks     AgentTask[]
-  agentEvents    AgentEvent[]
-  contactFacts   ContactFact[]
-  contactBriefs  ContactBrief[]
-  emailThreads   EmailThread[]
-  emailMessages  EmailMessage[]
-  calendarEvents CalendarEvent[]
-  eventAttendees CalendarAttendee[]
-  enrichments    CompanyEnrichment[]
-  conversations  AgentConversation[]
-  profile        WorkspaceProfile?
+  allowedSignIns     AllowedSignIn[]
+  companies          Company[]
+  contacts           Contact[]
+  deals              Deal[]
+  dealContacts       DealContact[]
+  activities         Activity[]
+  agentTasks         AgentTask[]
+  agentEvents        AgentEvent[]
+  contactFacts       ContactFact[]
+  contactBriefs      ContactBrief[]
+  emailThreads       EmailThread[]
+  emailMessages      EmailMessage[]
+  calendarEvents     CalendarEvent[]
+  eventAttendees     CalendarAttendee[]
+  enrichments        CompanyEnrichment[]
+  suppressedDomains  SuppressedDomain[]
+  suppressedContacts SuppressedContact[]
+  conversations      AgentConversation[]
+  profile            WorkspaceProfile?
 
   @@unique([slug])
   @@map("organization")

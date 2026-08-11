@@ -338,8 +338,14 @@ export class ContactsService {
 
 				if (suppress) {
 					await tx.suppressedContact.upsert({
-						where: { email: suppress },
+						where: {
+							organizationId_email: {
+								organizationId: tenantId(),
+								email: suppress,
+							},
+						},
 						create: {
+							organizationId: tenantId(),
 							email: suppress,
 							reason: `Deleted from the CRM (${name})`,
 						},
