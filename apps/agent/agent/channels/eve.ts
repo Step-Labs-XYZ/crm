@@ -1,3 +1,4 @@
+import { db } from "@crm/db";
 import {
 	type AuthFn,
 	extractBearerToken,
@@ -30,8 +31,15 @@ export function repFromCrm(secret: string): AuthFn<Request> {
 			const userId = claims.subject;
 			if (!userId) return null;
 
+			const attributes = claims.attributes ?? {};
+			const organizationId = attributes.organizationId;
+
+			if (typeof organizationId !== "string" || !organizationId) return null;
+
+			if (!(await belongsTo(userId, organizationId))) return null;
+
 			return {
-				attributes: claims.attributes ?? {},
+				attributes,
 				authenticator: "crm-app",
 				principalId: userId,
 				principalType: "user" as const,
@@ -39,6 +47,26 @@ export function repFromCrm(secret: string): AuthFn<Request> {
 		},
 		[{ scheme: "Bearer" }],
 	);
+}
+
+async function belongsTo(
+	userId: string,
+	organizationId: string,
+): Promise<boolean> {
+	try {
+		const member = await db.member.findUnique({
+			where: { organizationId_userId: { organizationId, userId } },
+			select: { id: true },
+		});
+
+		return Boolean(member);
+	} catch (error) {
+		console.error(
+			"[eve] could not check the workspace on a bridge token; refusing it",
+			error,
+		);
+		return false;
+	}
 }
 
 const secret = process.env.AGENT_BRIDGE_SECRET;

@@ -198,6 +198,9 @@ model Company {
 }
 
 model CompanyEnrichment {
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
   companyId String   @id
   company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
   source    String   @default("context.dev")
@@ -272,7 +275,10 @@ enum FactStatus {
 }
 
 model ContactFact {
-  id        String  @id @default(cuid())
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
   contactId String
   contact   Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
 
@@ -297,12 +303,16 @@ model ContactFact {
   observedAt   DateTime  @default(now())
   supersededAt DateTime?
 
+  @@index([organizationId])
   @@index([contactId, field, status])
   @@index([status, observedAt])
   @@map("contactFact")
 }
 
 model ContactBrief {
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
   contactId String  @id
   contact   Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
 
@@ -315,6 +325,7 @@ model ContactBrief {
 
   refreshedAt DateTime @default(now())
 
+  @@index([organizationId])
   @@map("contactBrief")
 }
 
@@ -526,7 +537,10 @@ model MailboxSync {
 }
 
 model EmailThread {
-  id            String  @id @default(cuid())
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
   rootMessageId String  @unique
   subject       String?
 
@@ -545,13 +559,17 @@ model EmailThread {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([organizationId])
   @@index([companyId, lastMessageAt])
   @@index([contactId, lastMessageAt])
   @@map("emailThread")
 }
 
 model EmailMessage {
-  id       String      @id @default(cuid())
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
   threadId String
   thread   EmailThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
 
@@ -570,12 +588,16 @@ model EmailMessage {
 
   createdAt DateTime @default(now())
 
+  @@index([organizationId])
   @@index([threadId, sentAt])
   @@map("emailMessage")
 }
 
 model CalendarEvent {
-  id                String   @id @default(cuid())
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
   iCalUid           String
   originalStartTime DateTime
   recurringEventId  String?
@@ -605,13 +627,17 @@ model CalendarEvent {
   updatedAt DateTime @updatedAt
 
   @@unique([iCalUid, originalStartTime])
+  @@index([organizationId])
   @@index([companyId, startsAt])
   @@index([contactId, startsAt])
   @@map("calendarEvent")
 }
 
 model CalendarAttendee {
-  id      String        @id @default(cuid())
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
   eventId String
   event   CalendarEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
@@ -676,6 +702,13 @@ model Organization {
   activities     Activity[]
   agentTasks     AgentTask[]
   agentEvents    AgentEvent[]
+  contactFacts   ContactFact[]
+  contactBriefs  ContactBrief[]
+  emailThreads   EmailThread[]
+  emailMessages  EmailMessage[]
+  calendarEvents CalendarEvent[]
+  eventAttendees CalendarAttendee[]
+  enrichments    CompanyEnrichment[]
   conversations  AgentConversation[]
   profile        WorkspaceProfile?
 

@@ -1,4 +1,4 @@
-import { db, FactBand, FactStatus } from "@crm/db";
+import { db, FactBand, FactStatus, tenantId } from "@crm/db";
 import { type Evidence, scoreEvidence } from "./evidence";
 import { currentFocus } from "./focus";
 import { isDerivedName, splitName } from "./names";
@@ -147,6 +147,7 @@ export async function recordFact(
 
 		await tx.contactFact.create({
 			data: {
+				organizationId: tenantId(),
 				contactId,
 				field,
 				value: trimmed,
@@ -253,7 +254,7 @@ export async function writeBrief(input: {
 
 	await db.contactBrief.upsert({
 		where: { contactId: input.contactId },
-		create: { contactId: input.contactId, ...data },
+		create: { organizationId: tenantId(), contactId: input.contactId, ...data },
 		update: data,
 	});
 

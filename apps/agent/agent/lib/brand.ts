@@ -1,4 +1,4 @@
-import { db, EnrichmentStatus } from "@crm/db";
+import { db, EnrichmentStatus, tenantId } from "@crm/db";
 import { mirrorBrandImages } from "./brand-images";
 import { brandToUpdate, filledFields, stillFillable } from "./brand-mapping";
 import { brandByDomain, contextDevEnabled } from "./context-dev";
@@ -122,7 +122,11 @@ export async function runBrand({
 
 		await tx.companyEnrichment.upsert({
 			where: { companyId },
-			create: { companyId, raw: result.raw as object },
+			create: {
+				organizationId: tenantId(),
+				companyId,
+				raw: result.raw as object,
+			},
 			update: { raw: result.raw as object, fetchedAt: new Date() },
 		});
 

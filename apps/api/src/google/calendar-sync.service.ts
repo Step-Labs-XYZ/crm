@@ -246,6 +246,7 @@ export class CalendarSyncService {
 		const record = await this.db.calendarEvent.upsert({
 			where: key,
 			create: {
+				organizationId: tenantId(),
 				iCalUid,
 				originalStartTime: originalStart.at,
 				recurringEventId: event.recurringEventId ?? null,
@@ -324,6 +325,7 @@ export class CalendarSyncService {
 			await this.db.calendarAttendee.upsert({
 				where: { eventId_email: { eventId, email } },
 				create: {
+					organizationId: tenantId(),
 					eventId,
 					email,
 					name: attendee.displayName ?? null,

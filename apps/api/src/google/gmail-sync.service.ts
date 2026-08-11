@@ -303,6 +303,7 @@ export class GmailSyncService {
 		const record = await this.db.emailThread.upsert({
 			where: { rootMessageId: parsed.rootId },
 			create: {
+				organizationId: tenantId(),
 				rootMessageId: parsed.rootId,
 				subject: parsed.subject,
 				companyId,
@@ -317,6 +318,7 @@ export class GmailSyncService {
 
 		await this.db.emailMessage.create({
 			data: {
+				organizationId: tenantId(),
 				threadId: record.id,
 				rfcMessageId: parsed.rfcMessageId,
 				syncedByUserId: row.userId,

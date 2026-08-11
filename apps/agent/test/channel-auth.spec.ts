@@ -1,4 +1,5 @@
-import { describe, expect, it } from "bun:test";
+import { afterAll, beforeAll, describe, expect, it } from "bun:test";
+import { db } from "@crm/db";
 import {
 	BRIDGE_AUDIENCE,
 	BRIDGE_ISSUER,
@@ -8,6 +9,46 @@ import { isAutomated } from "../agent/lib/approval";
 
 const SECRET = "test-secret-at-least-long-enough-to-be-a-secret";
 const auth = repFromCrm(SECRET);
+
+const suffix = (process.env.TEST_RUN_ID ?? "channel-auth").replace(
+	/[^a-z0-9]+/gi,
+	"-",
+);
+
+const TENANT = `${suffix}-workspace`;
+const OTHER = `${suffix}-somebody-else`;
+const REP = `${suffix}-rep`;
+
+const clear = async () => {
+	await db.organization.deleteMany({ where: { id: { in: [TENANT, OTHER] } } });
+	await db.user.deleteMany({ where: { id: REP } });
+};
+
+beforeAll(async () => {
+	await clear();
+
+	await db.user.create({
+		data: { id: REP, name: "Lewis Carhart", email: `${REP}@example.test` },
+	});
+
+	for (const id of [TENANT, OTHER]) {
+		await db.organization.create({
+			data: { id, name: id, slug: id, createdAt: new Date() },
+		});
+	}
+
+	await db.member.create({
+		data: {
+			id: `${suffix}-member`,
+			organizationId: TENANT,
+			userId: REP,
+			role: "member",
+			createdAt: new Date(),
+		},
+	});
+});
+
+afterAll(clear);
 
 async function mint(
 	claims: Record<string, unknown>,
@@ -45,7 +86,8 @@ function claims(overrides: Record<string, unknown> = {}) {
 	return {
 		iss: BRIDGE_ISSUER,
 		aud: BRIDGE_AUDIENCE,
-		sub: "user_123",
+		sub: REP,
+		organizationId: TENANT,
 		email: "lewis@trycomp.ai",
 		name: "Lewis Carhart",
 		iat: now,
@@ -61,7 +103,7 @@ describe("repFromCrm", () => {
 
 		expect(result).toMatchObject({
 			authenticator: "crm-app",
-			principalId: "user_123",
+			principalId: REP,
 			principalType: "user",
 		});
 	});
@@ -78,6 +120,19 @@ describe("repFromCrm", () => {
 		expect(session).toMatchObject({
 			attributes: { email: "lewis@trycomp.ai", name: "Lewis Carhart" },
 		});
+	});
+
+	it("refuses a token claiming a workspace the rep does not belong to", async () => {
+		const token = await mint(claims({ organizationId: OTHER }));
+
+		expect(await auth(request(token))).toBeNull();
+	});
+
+	it("refuses a token that names no workspace at all", async () => {
+		const bare = claims();
+		delete (bare as Record<string, unknown>).organizationId;
+
+		expect(await auth(request(await mint(bare)))).toBeNull();
 	});
 
 	it("skips a request with no token, rather than accepting it", async () => {

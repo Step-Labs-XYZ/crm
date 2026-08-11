@@ -9,6 +9,13 @@ export const TENANT_MODELS = [
 	"AgentTask",
 	"AgentEvent",
 	"AgentConversation",
+	"ContactFact",
+	"ContactBrief",
+	"EmailThread",
+	"EmailMessage",
+	"CalendarEvent",
+	"CalendarAttendee",
+	"CompanyEnrichment",
 ] as const;
 
 export type TenantModel = (typeof TENANT_MODELS)[number];
