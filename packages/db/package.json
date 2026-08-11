@@ -13,7 +13,9 @@
 		"./images": "./src/images.ts",
 		"./safe-fetch": "./src/safe-fetch.ts",
 		"./settings": "./src/settings.ts",
-		"./workspace": "./src/workspace.ts"
+		"./workspace": "./src/workspace.ts",
+		"./tenant-scope": "./src/tenant-scope.ts",
+		"./sole-tenant": "./src/sole-tenant.ts"
 	},
 	"scripts": {
 		"build": "prisma generate",

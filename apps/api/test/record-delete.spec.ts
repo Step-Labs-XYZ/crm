@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
-import { db, RecordSource } from "@crm/db";
+import { db, RecordSource, withTenant } from "@crm/db";
 import { WORKSPACE_ID } from "@crm/db/workspace";
 import { AgentQueueService } from "../src/agent/agent-queue.service";
 import { AgentTriggerService } from "../src/agent/agent-trigger.service";
@@ -10,6 +10,13 @@ import { ContactsService } from "../src/contacts/contacts.service";
 import { ActivityStampService } from "../src/crm/activity-stamp.service";
 import { EnrichmentLogService } from "../src/crm/enrichment-log.service";
 import { GoogleMatchService } from "../src/google/google-match.service";
+
+const TEST_TENANT = WORKSPACE_ID;
+
+const scoped =
+	<T>(run: () => Promise<T>) =>
+	() =>
+		withTenant(TEST_TENANT, run);
 
 const suffix = process.env.TEST_RUN_ID ?? "record-delete-spec";
 const domain = `delete-${suffix}.test`;
@@ -97,265 +104,315 @@ async function clean() {
 	await db.user.deleteMany({ where: { id: userId } });
 }
 
-beforeAll(async () => {
-	await clean();
-	await db.user.create({
-		data: { id: userId, name: "Test Rep", email: `${userId}@example.test` },
-	});
-});
+beforeAll(
+	scoped(async () => {
+		await clean();
+		await db.user.create({
+			data: { id: userId, name: "Test Rep", email: `${userId}@example.test` },
+		});
+	}),
+);
 
-afterAll(clean);
+afterAll(scoped(clean));
 
 describe("deleting a contact", () => {
 	let contactId: string;
 
-	it("takes the record, its queued research and its transcript with it", async () => {
-		const created = await contacts.create({
-			firstName: "Gone",
-			lastName: "Person",
-			email,
-			ownerId: userId,
-		});
-		contactId = created.id;
-
-		await parked({ contactId });
-
-		await db.agentEvent.create({
-			data: {
-				id: `evt-${suffix}`,
-				sessionId: `ses-${suffix}`,
-				contactId,
-				type: "session.started",
-				data: {},
-				emittedAt: new Date(),
-			},
-		});
-
-		expect(await contacts.delete(contactId)).toEqual({
-			id: contactId,
-			name: "Gone Person",
-		});
-
-		expect(
-			await db.contact.findUnique({ where: { id: contactId } }),
-		).toBeNull();
-		expect(await db.agentTask.count({ where: { contactId } })).toBe(0);
-		expect(await db.agentEvent.count({ where: { contactId } })).toBe(0);
-	});
-
-	it("remembers the address so the sync cannot bring them back", async () => {
-		const suppressed = await db.suppressedContact.findUnique({
-			where: { email },
-		});
-		expect(suppressed).not.toBeNull();
-
-		const result = await match.resolve(
-			{
-				participants: [{ email, name: "Gone Person" }],
-				allowCreate: true,
-				source: RecordSource.EMAIL,
+	it(
+		"takes the record, its queued research and its transcript with it",
+		scoped(async () => {
+			const created = await contacts.create({
+				firstName: "Gone",
+				lastName: "Person",
+				email,
 				ownerId: userId,
-			},
-			await matchContext(),
-		);
+			});
+			contactId = created.id;
 
-		expect(result.external).toEqual([]);
-		expect(result.contactId).toBeNull();
-		expect(await db.contact.findFirst({ where: { email } })).toBeNull();
-	});
+			await parked({ contactId });
 
-	it("still files the colleagues who were not deleted", async () => {
-		const result = await match.resolve(
-			{
-				participants: [
-					{ email, name: "Gone Person" },
-					{ email: colleague, name: "Stays Here" },
-				],
-				allowCreate: true,
-				source: RecordSource.EMAIL,
-				ownerId: userId,
-			},
-			await matchContext(),
-		);
+			await db.agentEvent.create({
+				data: {
+					id: `evt-${suffix}`,
+					sessionId: `ses-${suffix}`,
+					contactId,
+					type: "session.started",
+					data: {},
+					emittedAt: new Date(),
+				},
+			});
 
-		expect(result.external.map((person) => person.email)).toEqual([colleague]);
+			expect(await contacts.delete(contactId)).toEqual({
+				id: contactId,
+				name: "Gone Person",
+			});
 
-		const created = await db.contact.findFirst({ where: { email: colleague } });
-		expect(created?.id).toBe(result.contactId ?? undefined);
-	});
+			expect(
+				await db.contact.findUnique({ where: { id: contactId } }),
+			).toBeNull();
+			expect(await db.agentTask.count({ where: { contactId } })).toBe(0);
+			expect(await db.agentEvent.count({ where: { contactId } })).toBe(0);
+		}),
+	);
 
-	it("lets a rep add them back by hand, which lifts the suppression", async () => {
-		const readded = await contacts.create({ firstName: "Gone", email });
+	it(
+		"remembers the address so the sync cannot bring them back",
+		scoped(async () => {
+			const suppressed = await db.suppressedContact.findUnique({
+				where: { email },
+			});
+			expect(suppressed).not.toBeNull();
 
-		expect(
-			await db.suppressedContact.findUnique({ where: { email } }),
-		).toBeNull();
+			const result = await match.resolve(
+				{
+					participants: [{ email, name: "Gone Person" }],
+					allowCreate: true,
+					source: RecordSource.EMAIL,
+					ownerId: userId,
+				},
+				await matchContext(),
+			);
 
-		await db.contact.delete({ where: { id: readded.id } });
-		await db.suppressedContact.deleteMany({ where: { email } });
-	});
+			expect(result.external).toEqual([]);
+			expect(result.contactId).toBeNull();
+			expect(await db.contact.findFirst({ where: { email } })).toBeNull();
+		}),
+	);
 
-	it("suppresses an address a rep typed in caps as the sync will see it", async () => {
-		const typed = `Mixed.Case@${domain.toUpperCase()}`;
-		const asSynced = typed.toLowerCase();
+	it(
+		"still files the colleagues who were not deleted",
+		scoped(async () => {
+			const result = await match.resolve(
+				{
+					participants: [
+						{ email, name: "Gone Person" },
+						{ email: colleague, name: "Stays Here" },
+					],
+					allowCreate: true,
+					source: RecordSource.EMAIL,
+					ownerId: userId,
+				},
+				await matchContext(),
+			);
 
-		const created = await contacts.create({ firstName: "Mixed", email: typed });
+			expect(result.external.map((person) => person.email)).toEqual([
+				colleague,
+			]);
 
-		expect(
-			await db.contact.findUnique({
-				where: { id: created.id },
-				select: { email: true },
-			}),
-		).toEqual({ email: asSynced });
+			const created = await db.contact.findFirst({
+				where: { email: colleague },
+			});
+			expect(created?.id).toBe(result.contactId ?? undefined);
+		}),
+	);
 
-		await contacts.delete(created.id);
+	it(
+		"lets a rep add them back by hand, which lifts the suppression",
+		scoped(async () => {
+			const readded = await contacts.create({ firstName: "Gone", email });
 
-		expect(
-			await db.suppressedContact.findUnique({ where: { email: asSynced } }),
-		).not.toBeNull();
+			expect(
+				await db.suppressedContact.findUnique({ where: { email } }),
+			).toBeNull();
 
-		const result = await match.resolve(
-			{
-				participants: [{ email: asSynced, name: "Mixed Case" }],
-				allowCreate: true,
-				source: RecordSource.EMAIL,
-				ownerId: userId,
-			},
-			await matchContext(),
-		);
+			await db.contact.delete({ where: { id: readded.id } });
+			await db.suppressedContact.deleteMany({ where: { email } });
+		}),
+	);
 
-		expect(result.external).toEqual([]);
-		expect(
-			await db.contact.findFirst({ where: { email: asSynced } }),
-		).toBeNull();
-	});
+	it(
+		"suppresses an address a rep typed in caps as the sync will see it",
+		scoped(async () => {
+			const typed = `Mixed.Case@${domain.toUpperCase()}`;
+			const asSynced = typed.toLowerCase();
+
+			const created = await contacts.create({
+				firstName: "Mixed",
+				email: typed,
+			});
+
+			expect(
+				await db.contact.findUnique({
+					where: { id: created.id },
+					select: { email: true },
+				}),
+			).toEqual({ email: asSynced });
+
+			await contacts.delete(created.id);
+
+			expect(
+				await db.suppressedContact.findUnique({ where: { email: asSynced } }),
+			).not.toBeNull();
+
+			const result = await match.resolve(
+				{
+					participants: [{ email: asSynced, name: "Mixed Case" }],
+					allowCreate: true,
+					source: RecordSource.EMAIL,
+					ownerId: userId,
+				},
+				await matchContext(),
+			);
+
+			expect(result.external).toEqual([]);
+			expect(
+				await db.contact.findFirst({ where: { email: asSynced } }),
+			).toBeNull();
+		}),
+	);
 });
 
 describe("deleting a company", () => {
-	it("takes its deals and leaves its people without a company", async () => {
-		const company = await companies.create({
-			name: "Doomed",
-			domain: doomedDomain,
-		});
-		const contact = await contacts.create({
-			firstName: "Left",
-			lastName: "Behind",
-			email: `left@${doomedDomain}`,
-			companyId: company.id,
-		});
-		const deal = await db.deal.create({
-			data: { name: "Doomed deal", companyId: company.id, ownerId: userId },
-			select: { id: true },
-		});
+	it(
+		"takes its deals and leaves its people without a company",
+		scoped(async () => {
+			const company = await companies.create({
+				name: "Doomed",
+				domain: doomedDomain,
+			});
+			const contact = await contacts.create({
+				firstName: "Left",
+				lastName: "Behind",
+				email: `left@${doomedDomain}`,
+				companyId: company.id,
+			});
+			const deal = await db.deal.create({
+				data: {
+					organizationId: TEST_TENANT,
+					name: "Doomed deal",
+					companyId: company.id,
+					ownerId: userId,
+				},
+				select: { id: true },
+			});
 
-		await parked({ companyId: company.id });
+			await parked({ companyId: company.id });
 
-		expect(await companies.delete(company.id)).toEqual({
-			id: company.id,
-			name: "Doomed",
-		});
+			expect(await companies.delete(company.id)).toEqual({
+				id: company.id,
+				name: "Doomed",
+			});
 
-		expect(await db.deal.findUnique({ where: { id: deal.id } })).toBeNull();
-		expect(await db.agentTask.count({ where: { companyId: company.id } })).toBe(
-			0,
-		);
+			expect(await db.deal.findUnique({ where: { id: deal.id } })).toBeNull();
+			expect(
+				await db.agentTask.count({ where: { companyId: company.id } }),
+			).toBe(0);
 
-		const survivor = await db.contact.findUnique({
-			where: { id: contact.id },
-			select: { companyId: true },
-		});
-		expect(survivor?.companyId).toBeNull();
+			const survivor = await db.contact.findUnique({
+				where: { id: contact.id },
+				select: { companyId: true },
+			});
+			expect(survivor?.companyId).toBeNull();
 
-		await db.contact.delete({ where: { id: contact.id } });
-	});
+			await db.contact.delete({ where: { id: contact.id } });
+		}),
+	);
 });
 
 describe("the activity stamps a delete leaves behind", () => {
-	it("are recomputed on every record the deleted one's activities touched", async () => {
-		const company = await companies.create({
-			name: "Stamped",
-			domain: stampDomain,
-		});
-		const contact = await contacts.create({
-			firstName: "Stamped",
-			email: `stamped@${stampDomain}`,
-			companyId: company.id,
-		});
-		const deal = await db.deal.create({
-			data: { name: "Stamped deal", companyId: company.id, ownerId: userId },
-			select: { id: true },
-		});
-
-		const at = new Date();
-		await db.activity.create({
-			data: {
-				type: "NOTE",
-				subject: "The only thing on this account",
+	it(
+		"are recomputed on every record the deleted one's activities touched",
+		scoped(async () => {
+			const company = await companies.create({
+				name: "Stamped",
+				domain: stampDomain,
+			});
+			const contact = await contacts.create({
+				firstName: "Stamped",
+				email: `stamped@${stampDomain}`,
 				companyId: company.id,
-				contactId: contact.id,
-				dealId: deal.id,
-				createdById: userId,
-				createdAt: at,
-			},
-		});
-		await stamp.touch(
-			{ companyId: company.id, contactId: contact.id, dealId: deal.id },
-			at,
-		);
+			});
+			const deal = await db.deal.create({
+				data: {
+					organizationId: TEST_TENANT,
+					name: "Stamped deal",
+					companyId: company.id,
+					ownerId: userId,
+				},
+				select: { id: true },
+			});
 
-		await contacts.delete(contact.id);
+			const at = new Date();
+			await db.activity.create({
+				data: {
+					organizationId: TEST_TENANT,
+					type: "NOTE",
+					subject: "The only thing on this account",
+					companyId: company.id,
+					contactId: contact.id,
+					dealId: deal.id,
+					createdById: userId,
+					createdAt: at,
+				},
+			});
+			await stamp.touch(
+				{ companyId: company.id, contactId: contact.id, dealId: deal.id },
+				at,
+			);
 
-		expect(
-			await db.company.findUnique({
-				where: { id: company.id },
-				select: { lastActivityAt: true },
-			}),
-		).toEqual({ lastActivityAt: null });
-		expect(
-			await db.deal.findUnique({
-				where: { id: deal.id },
-				select: { lastActivityAt: true },
-			}),
-		).toEqual({ lastActivityAt: null });
-	});
+			await contacts.delete(contact.id);
 
-	it("follow a deleted company through the deals it takes with it", async () => {
-		const company = await companies.create({
-			name: "Orphaner",
-			domain: orphanDomain,
-		});
-		const contact = await contacts.create({
-			firstName: "Orphaned",
-			email: `orphaned@${orphanDomain}`,
-			companyId: company.id,
-		});
-		const deal = await db.deal.create({
-			data: { name: "Orphaned deal", companyId: company.id, ownerId: userId },
-			select: { id: true },
-		});
+			expect(
+				await db.company.findUnique({
+					where: { id: company.id },
+					select: { lastActivityAt: true },
+				}),
+			).toEqual({ lastActivityAt: null });
+			expect(
+				await db.deal.findUnique({
+					where: { id: deal.id },
+					select: { lastActivityAt: true },
+				}),
+			).toEqual({ lastActivityAt: null });
+		}),
+	);
 
-		const at = new Date();
-		await db.activity.create({
-			data: {
-				type: "MEETING",
-				subject: "Only ever attached to the deal",
-				contactId: contact.id,
-				dealId: deal.id,
-				createdById: userId,
-				createdAt: at,
-			},
-		});
-		await stamp.touch({ contactId: contact.id, dealId: deal.id }, at);
+	it(
+		"follow a deleted company through the deals it takes with it",
+		scoped(async () => {
+			const company = await companies.create({
+				name: "Orphaner",
+				domain: orphanDomain,
+			});
+			const contact = await contacts.create({
+				firstName: "Orphaned",
+				email: `orphaned@${orphanDomain}`,
+				companyId: company.id,
+			});
+			const deal = await db.deal.create({
+				data: {
+					organizationId: TEST_TENANT,
+					name: "Orphaned deal",
+					companyId: company.id,
+					ownerId: userId,
+				},
+				select: { id: true },
+			});
 
-		await companies.delete(company.id);
+			const at = new Date();
+			await db.activity.create({
+				data: {
+					organizationId: TEST_TENANT,
+					type: "MEETING",
+					subject: "Only ever attached to the deal",
+					contactId: contact.id,
+					dealId: deal.id,
+					createdById: userId,
+					createdAt: at,
+				},
+			});
+			await stamp.touch({ contactId: contact.id, dealId: deal.id }, at);
 
-		expect(
-			await db.contact.findUnique({
-				where: { id: contact.id },
-				select: { companyId: true, lastActivityAt: true },
-			}),
-		).toEqual({ companyId: null, lastActivityAt: null });
+			await companies.delete(company.id);
 
-		await db.contact.delete({ where: { id: contact.id } });
-	});
+			expect(
+				await db.contact.findUnique({
+					where: { id: contact.id },
+					select: { companyId: true, lastActivityAt: true },
+				}),
+			).toEqual({ companyId: null, lastActivityAt: null });
+
+			await db.contact.delete({ where: { id: contact.id } });
+		}),
+	);
 });

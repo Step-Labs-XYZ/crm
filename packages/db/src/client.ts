@@ -2,6 +2,7 @@ import "@crm/env/load";
 
 import { PrismaPg } from "@prisma/adapter-pg";
 import { type Prisma, PrismaClient } from "./generated/prisma/client";
+import { tenantScopeExtension } from "./tenant-extension";
 
 const connectionString = process.env.DATABASE_URL;
 
@@ -71,7 +72,7 @@ const createPrismaClient = () => {
 		sink({ level: "query", message: query, target, durationMs: duration });
 	});
 
-	return client;
+	return client.$extends(tenantScopeExtension);
 };
 
 const globalForPrisma = globalThis as unknown as {
@@ -85,3 +86,8 @@ if (process.env.NODE_ENV !== "production") {
 }
 
 export type Db = typeof db;
+
+export type DbTransaction = Omit<
+	Db,
+	"$connect" | "$disconnect" | "$on" | "$transaction" | "$extends" | "$use"
+>;

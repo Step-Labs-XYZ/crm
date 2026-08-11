@@ -1,4 +1,4 @@
-import { EnrichmentStatus } from "@crm/db";
+import { EnrichmentStatus, withSoleTenant } from "@crm/db";
 import { APP_AUTH, type AppAuth } from "./app-auth";
 import { brandOutcome, runBrand } from "./brand";
 import { markRunning, settle } from "./enrichment";
@@ -130,10 +130,11 @@ export function taskAuth(task: LeasedTask, base: AppAuth = APP_AUTH): AppAuth {
 }
 
 export const drainAll = collapsing(
-	async (start: (task: LeasedTask) => Promise<{ id: string }>) => {
-		await retireAbandoned();
-		await Promise.all([runVisibleLane(), runResearchLane(start)]);
-	},
+	async (start: (task: LeasedTask) => Promise<{ id: string }>) =>
+		withSoleTenant(async () => {
+			await retireAbandoned();
+			await Promise.all([runVisibleLane(), runResearchLane(start)]);
+		}),
 );
 
 export function brief(task: LeasedTask): string {

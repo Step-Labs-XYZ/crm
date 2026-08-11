@@ -1,8 +1,10 @@
+import { withTenant } from "@crm/db";
 import { Injectable, Logger } from "@nestjs/common";
 import { CalendarSyncService } from "./calendar-sync.service";
 import { GmailSyncService } from "./gmail-sync.service";
 import type { SyncSource } from "./google.constants";
 import { GoogleConnectionService } from "./google-connection.service";
+import { GoogleMatchService } from "./google-match.service";
 import { SyncStateService } from "./sync-state.service";
 
 const TICK_BUDGET_MS = 60_000;
@@ -24,6 +26,7 @@ export class GoogleSyncService {
 		private readonly calendar: CalendarSyncService,
 		private readonly gmail: GmailSyncService,
 		private readonly connections: GoogleConnectionService,
+		private readonly match: GoogleMatchService,
 	) {}
 
 	async runDue(): Promise<TickSummary> {
@@ -99,9 +102,20 @@ export class GoogleSyncService {
 		const row = await this.state.get(userId, source);
 		if (!row) return null;
 
-		return source === "calendar"
-			? this.calendar.sync(row)
-			: this.gmail.sync(row);
+		const organizationId = await this.match.tenantOf(userId);
+
+		if (!organizationId) {
+			this.logger.warn({
+				message: "Mailbox owner belongs to no workspace; skipping",
+				userId,
+				source,
+			});
+			return null;
+		}
+
+		return withTenant(organizationId, () =>
+			source === "calendar" ? this.calendar.sync(row) : this.gmail.sync(row),
+		);
 	}
 
 	async runForUser(userId: string): Promise<void> {

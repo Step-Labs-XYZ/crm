@@ -4,6 +4,7 @@ import {
 	type Prisma,
 	Prisma as PrismaNamespace,
 	type RecordSource,
+	tenantId,
 } from "@crm/db";
 import {
 	BadRequestException,
@@ -269,7 +270,9 @@ export class CompaniesService {
 
 		if (domain) {
 			const existing = await this.db.company.findUnique({
-				where: { domain },
+				where: {
+					organizationId_domain: { organizationId: tenantId(), domain },
+				},
 				select: { id: true, name: true },
 			});
 			if (existing) {
@@ -281,6 +284,7 @@ export class CompaniesService {
 
 		const company = await this.db.company.create({
 			data: {
+				organizationId: tenantId(),
 				name: input.name.trim(),
 				domain,
 				website: domain ? `https://${domain}` : null,

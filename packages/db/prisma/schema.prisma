@@ -1,4 +1,3 @@
-
 datasource db {
   provider = "postgresql"
 }
@@ -136,9 +135,12 @@ enum RecordSource {
 }
 
 model Company {
-  id          String  @id @default(cuid())
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
   name        String
-  domain      String? @unique
+  domain      String?
   website     String?
   description String?
 
@@ -187,6 +189,8 @@ model Company {
   createdAt      DateTime            @default(now())
   updatedAt      DateTime            @updatedAt
 
+  @@unique([organizationId, domain])
+  @@index([organizationId])
   @@index([ownerId])
   @@index([name])
   @@index([lastActivityAt])
@@ -204,10 +208,13 @@ model CompanyEnrichment {
 }
 
 model Contact {
-  id          String  @id @default(cuid())
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
   firstName   String
   lastName    String?
-  email       String? @unique
+  email       String?
   phone       String?
   title       String?
   linkedinUrl String?
@@ -243,6 +250,8 @@ model Contact {
   createdAt       DateTime           @default(now())
   updatedAt       DateTime           @updatedAt
 
+  @@unique([organizationId, email])
+  @@index([organizationId])
   @@index([companyId])
   @@index([ownerId])
   @@index([lastActivityAt])
@@ -380,7 +389,10 @@ model AgentConversation {
 }
 
 model Deal {
-  id            String              @id @default(cuid())
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
   conversations AgentConversation[]
   name          String
   companyId     String
@@ -403,6 +415,7 @@ model Deal {
   createdAt  DateTime      @default(now())
   updatedAt  DateTime      @updatedAt
 
+  @@index([organizationId])
   @@index([companyId])
   @@index([ownerId])
   @@index([stage])
@@ -412,6 +425,9 @@ model Deal {
 }
 
 model DealContact {
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
   dealId    String
   deal      Deal    @relation(fields: [dealId], references: [id], onDelete: Cascade)
   contactId String
@@ -419,12 +435,16 @@ model DealContact {
   role      String?
 
   @@id([dealId, contactId])
+  @@index([organizationId])
   @@index([contactId])
   @@map("dealContact")
 }
 
 model Activity {
-  id      String       @id @default(cuid())
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
   type    ActivityType
   subject String?
   body    String?
@@ -452,6 +472,7 @@ model Activity {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([organizationId])
   @@index([companyId, createdAt])
   @@index([dealId, createdAt])
   @@index([contactId, createdAt])
@@ -637,6 +658,11 @@ model Organization {
   invitations Invitation[]
 
   allowedSignIns AllowedSignIn[]
+  companies      Company[]
+  contacts       Contact[]
+  deals          Deal[]
+  dealContacts   DealContact[]
+  activities     Activity[]
 
   @@unique([slug])
   @@map("organization")

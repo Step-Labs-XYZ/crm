@@ -4,6 +4,7 @@ import {
 	GoogleSyncStatus,
 	type MailboxSyncModel as MailboxSync,
 	RecordSource,
+	tenantId,
 } from "@crm/db";
 import { Injectable, Logger } from "@nestjs/common";
 import { AgentTriggerService } from "../agent/agent-trigger.service";
@@ -69,16 +70,7 @@ export class CalendarSyncService {
 			};
 		}
 
-		const organizationId = await this.match.tenantOf(row.userId);
-
-		if (!organizationId) {
-			return {
-				source: "calendar",
-				userId: row.userId,
-				status: "skipped",
-				reason: "That account does not belong to a workspace.",
-			};
-		}
+		const organizationId = tenantId();
 
 		await this.state.markRunning(row.id);
 
@@ -388,6 +380,7 @@ export class CalendarSyncService {
 		const activity = await this.db.activity.upsert({
 			where: { calendarEventId },
 			create: {
+				organizationId: tenantId(),
 				type: ActivityType.MEETING,
 				subject: summary.title,
 				body,

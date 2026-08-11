@@ -2,6 +2,8 @@ import { mirror } from "../src/blob";
 import { db } from "../src/client";
 import { resolveFavicon } from "../src/favicon";
 import { ActivityType, DealStage } from "../src/generated/prisma/enums";
+import { tenantId, withTenant } from "../src/tenant-scope";
+import { DEFAULT_WORKSPACE_SLUG, WORKSPACE_ID } from "../src/workspace";
 
 function makeRandom(seed: number): () => number {
 	let a = seed;
@@ -357,8 +359,14 @@ async function seedCompanies(
 
 	for (const company of COMPANIES) {
 		const row = await db.company.upsert({
-			where: { domain: company.domain },
+			where: {
+				organizationId_domain: {
+					organizationId: tenantId(),
+					domain: company.domain,
+				},
+			},
 			create: {
+				organizationId: tenantId(),
 				name: company.name,
 				domain: company.domain,
 				website: `https://${company.domain}`,
@@ -424,8 +432,11 @@ async function seedContacts(
 			used.add(email);
 
 			const contact = await db.contact.upsert({
-				where: { email },
+				where: {
+					organizationId_email: { organizationId: tenantId(), email },
+				},
 				create: {
+					organizationId: tenantId(),
 					firstName,
 					lastName,
 					email,
@@ -491,6 +502,7 @@ async function seedDeals(
 				where: { id },
 				create: {
 					id,
+					organizationId: tenantId(),
 					name:
 						n === 0
 							? `${company.name} — Comp AI`
@@ -524,6 +536,7 @@ async function seedDeals(
 				await db.dealContact.upsert({
 					where: { dealId_contactId: { dealId: id, contactId: contact.id } },
 					create: {
+						organizationId: tenantId(),
 						dealId: id,
 						contactId: contact.id,
 						role: chance(0.5) ? "Champion" : "Decision maker",
@@ -654,11 +667,34 @@ async function seedActivities(
 		});
 	}
 
-	await db.activity.createMany({ data: rows });
+	await db.activity.createMany({
+		data: rows.map((row) => ({ ...row, organizationId: tenantId() })),
+	});
 	return rows.length;
 }
 
-async function main() {
+async function seedWorkspace(): Promise<string> {
+	const existing = await db.organization.findFirst({
+		select: { id: true },
+		orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+	});
+
+	if (existing) return existing.id;
+
+	const created = await db.organization.create({
+		data: {
+			id: WORKSPACE_ID,
+			name: "CRM",
+			slug: DEFAULT_WORKSPACE_SLUG,
+			createdAt: new Date(),
+		},
+		select: { id: true },
+	});
+
+	return created.id;
+}
+
+async function seedAll() {
 	const ownerIds = await seedOwners();
 	const companies = await seedCompanies(ownerIds);
 	const contacts = await seedContacts(companies, ownerIds);
@@ -669,6 +705,12 @@ async function main() {
 		`Seeded ${companies.length} companies, ${contacts.length} contacts, ` +
 			`${deals.length} deals, ${activities} activities.`,
 	);
+}
+
+async function main() {
+	const organizationId = await seedWorkspace();
+
+	await withTenant(organizationId, seedAll);
 }
 
 main()

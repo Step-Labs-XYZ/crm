@@ -103,11 +103,6 @@ Scoped in this change:
 
 **Not scoped yet, and each is its own feature:**
 
-- **The CRM records themselves** — `Company`, `Contact`, `Deal`, `Activity` carry
-  no `organizationId`, so every rep still reads every record. This is the large
-  one: 153 query sites in `apps/api/src` and 59 in the agent and `packages/db`.
-  Until it lands, **this install is not safe to point at two real asset
-  managers.**
 - **The agent** — `readWorkspaceProfile`, `readWorkspaceIdentity` and
   `writeWorkspaceProfile` still key on `WORKSPACE_ID`, because the agent's tasks,
   preambles and tools have no tenant to pass them yet. Its documented permission
@@ -122,10 +117,68 @@ Scoped in this change:
 - **`ssoProvider.providerId` is globally unique**, which is the plugin's schema,
   so two tenants cannot both register a provider called `okta`. The cross-tenant
   *delete* is closed; the naming collision is not.
-- **`Contact.email` and `Company.domain` are globally unique.** Two asset
-  managers cannot both have a contact at the same address, and the second one to
-  try gets a conflict about a record they cannot see. These constraints have to
-  become composite with the tenant when the records are scoped.
+## The CRM records: one rule, not 212 edits
+
+`Company`, `Contact`, `Deal`, `DealContact` and `Activity` carry an
+`organizationId`, and **no service reads or writes it in a `where` clause.** A
+Prisma client extension (`packages/db/src/tenant-extension.ts`) injects the
+predicate into every operation on those five models, so the 153 query sites in
+`apps/api/src` are untouched and still match upstream line for line. That is the
+whole point: hand-editing them is how a fork stops being rebaseable.
+
+- **The scope is ambient, and it is `AsyncLocalStorage`.**
+  `withTenant(organizationId, run)` in
+  [`@crm/db/tenant-scope`](../../packages/db/src/tenant-scope.ts) is the only way
+  in. `AuthMiddleware` wraps every tRPC call in it, so a procedure is inside its
+  caller's workspace before a service is reached.
+- **No scope is a refusal, not a default.** A query on one of the five models
+  with nothing in scope throws `MissingTenantScopeError` naming the model and the
+  operation. The alternative — falling through unscoped — is a silent
+  cross-tenant read, which is the one failure this whole change exists to
+  prevent. `acrossTenants("why", …)` is the explicit escape, and it is greppable.
+- **Reads are automatic; writes are compiler-enforced.** The extension stamps
+  `organizationId` onto a create, but Prisma's own types still require the field,
+  so every create site names its workspace — `organizationId: tenantId()`. That
+  is the better half of the deal: a record written without saying whose it is
+  should not compile.
+- **`findUnique`, `update` and `delete` take the predicate too.** Prisma's
+  extended where-unique accepts a non-unique filter beside the unique one, so
+  fetching another workspace's row by id returns `null` and updating it raises
+  `P2025`. Both are pinned in `apps/api/test/tenancy.integration.spec.ts`.
+- **`domain` and `email` are unique per workspace**, not per install:
+  `@@unique([organizationId, domain])` and `@@unique([organizationId, email])`.
+  Two asset managers can hold the same prospect. It also means a lookup by
+  domain or address is now a compound key, which is the one call-site shape the
+  extension cannot fix for you.
+- **The raw SQL carries the predicate by hand.** `$executeRaw` bypasses
+  extensions entirely, so `ActivityStampService` adds `"organizationId" = …` to
+  every statement, including the sub-selects over `activity`. A raw statement
+  added later and left unscoped is invisible to every guard in this file.
+
+### The one trap: a `PrismaPromise` is lazy
+
+`withTenant(id, () => db.company.findMany())` **does not work.** Prisma's promise
+does not execute until it is awaited, and the `await` happens after `withTenant`
+has returned — so the query runs with the scope already gone and throws. Write
+`withTenant(id, async () => db.company.findMany())`, or await inside the
+callback. Everything in a request is fine, because the whole request runs inside
+the scope; this only bites when a query is handed *out* of one.
+
+### What the agent does in the meantime
+
+The agent has no tenant plumbing, and its sessions run in async contexts the
+dispatcher's scope does not reach. So `agent.ts` resolves the install's **only**
+workspace at boot and sets it for the process (`setSingleTenantProcess`).
+
+That is a stopgap and it is written to fail loudly rather than quietly: with more
+than one workspace, `soleTenantId()` refuses, the agent logs that it cannot
+decide who it works for, and every CRM read refuses. The day a second asset
+manager is added, the agent stops — which is the correct behaviour for a process
+whose documented permission is to read everything including email bodies.
+
+`setSingleTenantProcess` has exactly one caller and must keep it. Called anywhere
+in the API it would give every request a fallback workspace, which is precisely
+the silent cross-tenant read the extension refuses.
 
 ## The invitation flow stays off, deliberately
 
@@ -151,8 +204,8 @@ Two things keep it manageable and both are worth defending in review:
   session rather than threading an `organizationId` argument through every
   signature is not only better, it is a smaller diff against whatever upstream
   writes next.
-- **When the records are scoped, do it with a Prisma client extension** that
-  injects the tenant filter, rather than hand-editing 212 `where` clauses. The
-  services then stay byte-identical to upstream and the rule lives in one file
-  that upstream has no opinion about. Hand-editing the call sites is how this
-  fork becomes unrebaseable.
+- **The records were scoped with a Prisma client extension**, not by hand. The
+  153 `where` clauses in `apps/api/src` are unchanged, so upstream's edits to
+  those services still apply cleanly. What did change is the create sites — one
+  line each, which the compiler demanded — and the handful of lookups by domain
+  or address that became compound keys.

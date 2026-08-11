@@ -1,7 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { db } from "@crm/db";
+import { db, withTenant } from "@crm/db";
 import { DIRECT_KINDS, isDirectKind, PRIORITY } from "@crm/db/agent-tasks";
+import { WORKSPACE_ID } from "@crm/db/workspace";
 import { claimDue } from "../agent/lib/tasks";
+
+const TEST_TENANT = WORKSPACE_ID;
+
+const scoped =
+	<T>(run: () => Promise<T>) =>
+	() =>
+		withTenant(TEST_TENANT, run);
 
 const REASON = "lane-test";
 
@@ -12,8 +20,8 @@ async function clear() {
 	await db.agentTask.deleteMany({ where: { reason: REASON } });
 }
 
-beforeEach(clear);
-afterEach(clear);
+beforeEach(scoped(clear));
+afterEach(scoped(clear));
 
 async function queue(kind: string, priority: number) {
 	return db.agentTask.create({

@@ -5,6 +5,7 @@ import {
 	GoogleSyncStatus,
 	type MailboxSyncModel as MailboxSync,
 	RecordSource,
+	tenantId,
 } from "@crm/db";
 import { Injectable, Logger } from "@nestjs/common";
 import { ActivityStampService } from "../crm/activity-stamp.service";
@@ -209,8 +210,7 @@ export class GmailSyncService {
 	): Promise<{ written: number; remaining: number }> {
 		if (ids.length === 0) return { written: 0, remaining: 0 };
 
-		const organizationId = await this.match.tenantOf(row.userId);
-		if (!organizationId) return { written: 0, remaining: 0 };
+		const organizationId = tenantId();
 
 		const alreadyHave = await this.db.emailMessage.findMany({
 			where: { gmailMessageId: { in: [...ids] } },
@@ -392,6 +392,7 @@ export class GmailSyncService {
 		const activity = await this.db.activity.upsert({
 			where: { emailThreadId },
 			create: {
+				organizationId: tenantId(),
 				type: ActivityType.EMAIL,
 				subject: summary.subject,
 				body: summary.snippet,
