@@ -176,8 +176,14 @@ export class GoogleConnectionService {
 		}
 
 		await this.db.suppressedDomain.upsert({
-			where: { domain: normalised },
-			create: { domain: normalised, reason: options.reason ?? null },
+			where: {
+				organizationId_domain: { organizationId, domain: normalised },
+			},
+			create: {
+				organizationId,
+				domain: normalised,
+				reason: options.reason ?? null,
+			},
 			update: { reason: options.reason ?? null },
 		});
 

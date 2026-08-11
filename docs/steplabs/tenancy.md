@@ -106,10 +106,6 @@ Scoped in this change:
 
 **Not scoped yet, and each is its own feature:**
 
-- **`SuppressedContact` and `SuppressedDomain` are still global.** Their keys are
-  unique across the install, so one asset manager suppressing `acme.com` hides it
-  from every other one. This is the sharpest of the remaining gaps because it is
-  a *write* by one tenant changing what another tenant sees.
 - **`MailboxSync`** is keyed on the user, so it follows their workspace, but it
   carries no column of its own.
 - **`sso.signInOptions`** is the one public procedure, and it has no session to
@@ -250,6 +246,28 @@ because mail was not a scoped model.
 with a thread, a message and a fact each, and pins that a session on one reads
 none of the other's — through the real `readCrmHistory`, `readCompanyHistory`
 and `searchCrm`, not just through Prisma.
+
+## A suppression is one workspace's decision
+
+`SuppressedContact` and `SuppressedDomain` were keyed on the address and the
+domain **alone**, which made them the sharpest gap in the whole change — not a
+read that saw too much, but a *write* by one tenant changing what another tenant
+sees. One asset manager deleting a contact stopped every other asset manager's
+sync from ever filing that person again, silently and permanently. And the
+second workspace to suppress the same address met a unique-constraint error
+about a row it had no way to look at.
+
+The key is the pair now — `@@id([organizationId, email])` and
+`@@id([organizationId, domain])` — so both workspaces can hold their own
+decision about the same address, and neither can lift the other's. The sync
+reads the sets through the same ambient scope as everything else, so
+`externalParticipants` is filtered to the mailbox owner's workspace without
+knowing that any of this happened.
+
+`test/suppression-tenancy.integration.spec.ts` pins all four halves: one
+workspace's suppression is invisible to the other, the other can suppress the
+same address for itself, the same holds for domains, and a delete lifts only
+your own.
 
 ### One workspace's backlog must not starve another's
 

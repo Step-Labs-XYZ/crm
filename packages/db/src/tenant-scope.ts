@@ -16,6 +16,8 @@ export const TENANT_MODELS = [
 	"CalendarEvent",
 	"CalendarAttendee",
 	"CompanyEnrichment",
+	"SuppressedContact",
+	"SuppressedDomain",
 ] as const;
 
 export type TenantModel = (typeof TENANT_MODELS)[number];
