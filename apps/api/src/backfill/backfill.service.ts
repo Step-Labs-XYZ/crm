@@ -4,6 +4,7 @@ import {
 	type Db,
 	EnrichmentStatus,
 	type Prisma,
+	tenantId,
 	withTenant,
 } from "@crm/db";
 import { PRIORITY } from "@crm/db/agent-tasks";
@@ -114,7 +115,7 @@ export class BackfillService implements OnModuleInit {
 	}
 
 	private async sweepWorkspace(): Promise<void> {
-		const us = await readWorkspaceIdentity(this.db);
+		const us = await readWorkspaceIdentity(this.db, tenantId());
 
 		if (!us?.website || us.profile) return;
 

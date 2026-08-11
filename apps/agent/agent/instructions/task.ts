@@ -8,6 +8,9 @@ export default defineDynamic({
 			const attributes = ctx.session.auth.current?.attributes ?? {};
 			const budget = asNumber(attributes.budget);
 			const kind = asString(attributes.taskKind);
+			const organizationId = asString(attributes.organizationId);
+
+			focusOn({ organizationId });
 
 			if (budget) setBudget(budget);
 

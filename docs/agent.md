@@ -515,6 +515,12 @@ one row rides in front of every question a rep asks.
 
 ## What the agent may read, and what may leave
 
+> **This fork is multi-tenant.** A session is scoped to one workspace — the
+> tenant rides in `lib/focus.ts` and `@crm/db` resolves the ambient scope from
+> it — so "everything" now means everything *in that workspace*. The reasoning
+> below is upstream's and has not been revisited for a CRM holding several asset
+> managers. See [`docs/steplabs/tenancy.md`](./steplabs/tenancy.md).
+
 It may read **everything**, including full email bodies — single-tenant internal
 tool, and a signature block is the best source of a job title there is. The
 boundary is egress, and it is three rules:

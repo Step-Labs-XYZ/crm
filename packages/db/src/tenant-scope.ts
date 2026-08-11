@@ -6,6 +6,9 @@ export const TENANT_MODELS = [
 	"Deal",
 	"DealContact",
 	"Activity",
+	"AgentTask",
+	"AgentEvent",
+	"AgentConversation",
 ] as const;
 
 export type TenantModel = (typeof TENANT_MODELS)[number];
@@ -22,20 +25,23 @@ export type TenantScope =
 
 const storage = new AsyncLocalStorage<TenantScope>();
 
-let processScope: TenantScope | null = null;
+export type AmbientTenantResolver = () => string | null;
 
-export function setSingleTenantProcess(organizationId: string): void {
-	if (!organizationId) {
-		throw new Error(
-			"setSingleTenantProcess needs an organization id, and was given none.",
-		);
-	}
+let ambient: AmbientTenantResolver | null = null;
 
-	processScope = { kind: "tenant", organizationId };
+export function setAmbientTenantResolver(
+	resolve: AmbientTenantResolver | null,
+): void {
+	ambient = resolve;
 }
 
 function scopeNow(): TenantScope | undefined {
-	return storage.getStore() ?? processScope ?? undefined;
+	const stored = storage.getStore();
+	if (stored) return stored;
+
+	const resolved = ambient?.() ?? null;
+
+	return resolved ? { kind: "tenant", organizationId: resolved } : undefined;
 }
 
 export function withTenant<T>(organizationId: string, run: () => T): T {

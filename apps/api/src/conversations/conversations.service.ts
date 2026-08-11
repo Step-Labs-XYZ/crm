@@ -1,4 +1,5 @@
 import type { Db } from "@crm/db";
+import { tenantId } from "@crm/db";
 import { CACHE_MANAGER } from "@nestjs/cache-manager";
 import {
 	BadRequestException,
@@ -90,6 +91,7 @@ export class ConversationsService {
 		const conversation = await this.db.agentConversation.upsert({
 			where: { sessionId: input.sessionId },
 			create: {
+				organizationId: tenantId(),
 				sessionId: input.sessionId,
 				continuationToken: input.continuationToken ?? null,
 				streamIndex: input.streamIndex ?? 0,

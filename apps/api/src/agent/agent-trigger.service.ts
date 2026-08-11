@@ -1,4 +1,5 @@
 import type { Db } from "@crm/db";
+import { tenantId } from "@crm/db";
 import { PRIORITY } from "@crm/db/agent-tasks";
 import { Injectable, Logger } from "@nestjs/common";
 import { InjectDatabase } from "../database/database.constants";
@@ -110,6 +111,7 @@ export class AgentTriggerService {
 			if (fresh.length > 0) {
 				await this.db.agentTask.createMany({
 					data: fresh.map((id) => ({
+						organizationId: tenantId(),
 						contactId: input.contactIds ? id : null,
 						companyId: input.companyIds ? id : null,
 						kind: input.kind,
@@ -166,6 +168,7 @@ export class AgentTriggerService {
 
 			await this.db.agentTask.create({
 				data: {
+					organizationId: tenantId(),
 					contactId: task.contactId ?? null,
 					companyId: task.companyId ?? null,
 					kind: task.kind,

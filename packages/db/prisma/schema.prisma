@@ -319,7 +319,10 @@ model ContactBrief {
 }
 
 model AgentTask {
-  id        String  @id @default(cuid())
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
   contactId String?
   companyId String?
 
@@ -340,13 +343,17 @@ model AgentTask {
 
   createdAt DateTime @default(now())
 
+  @@index([organizationId, dueAt, leasedUntil])
   @@index([dueAt, leasedUntil])
   @@index([contactId])
   @@map("agentTask")
 }
 
 model AgentEvent {
-  id        String  @id
+  id             String       @id
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
   sessionId String
   contactId String?
   type      String
@@ -354,6 +361,7 @@ model AgentEvent {
 
   emittedAt DateTime
 
+  @@index([organizationId])
   @@index([sessionId, emittedAt])
   @@index([contactId, emittedAt])
   @@map("agentEvent")
@@ -361,6 +369,9 @@ model AgentEvent {
 
 model AgentConversation {
   id String @id @default(cuid())
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   contactId String?
   contact   Contact? @relation(fields: [contactId], references: [id], onDelete: Cascade)
@@ -663,6 +674,10 @@ model Organization {
   deals          Deal[]
   dealContacts   DealContact[]
   activities     Activity[]
+  agentTasks     AgentTask[]
+  agentEvents    AgentEvent[]
+  conversations  AgentConversation[]
+  profile        WorkspaceProfile?
 
   @@unique([slug])
   @@map("organization")
@@ -681,7 +696,8 @@ model AllowedSignIn {
 }
 
 model WorkspaceProfile {
-  id String @id
+  id           String       @id
+  organization Organization @relation(fields: [id], references: [id], onDelete: Cascade)
 
   website   String
   narrative String

@@ -1,4 +1,4 @@
-import { db } from "@crm/db";
+import { db, tenantId } from "@crm/db";
 import {
 	readWorkspaceIdentity,
 	type WorkspaceIdentity,
@@ -8,7 +8,7 @@ export type { WorkspaceIdentity };
 
 export async function identity(): Promise<WorkspaceIdentity | null> {
 	try {
-		return await readWorkspaceIdentity(db);
+		return await readWorkspaceIdentity(db, tenantId());
 	} catch (error) {
 		console.error("[agent] could not read who we are", error);
 		return null;

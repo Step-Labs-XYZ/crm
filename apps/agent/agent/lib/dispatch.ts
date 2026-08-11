@@ -1,4 +1,4 @@
-import { EnrichmentStatus, withSoleTenant } from "@crm/db";
+import { acrossTenants, EnrichmentStatus, withTenant } from "@crm/db";
 import { APP_AUTH, type AppAuth } from "./app-auth";
 import { brandOutcome, runBrand } from "./brand";
 import { markRunning, settle } from "./enrichment";
@@ -31,11 +31,13 @@ export async function retireAbandoned(): Promise<void> {
 	}
 
 	for (const task of abandoned) {
-		await settle(
-			task,
-			EnrichmentStatus.FAILED,
-			"Research was attempted several times and never completed.",
-		).catch(() => {});
+		await withTenant(task.organizationId, () =>
+			settle(
+				task,
+				EnrichmentStatus.FAILED,
+				"Research was attempted several times and never completed.",
+			).catch(() => {}),
+		);
 	}
 }
 
@@ -59,6 +61,10 @@ export async function runVisibleLane(): Promise<number> {
 }
 
 async function runDirect(task: LeasedTask): Promise<void> {
+	return withTenant(task.organizationId, () => runDirectHere(task));
+}
+
+async function runDirectHere(task: LeasedTask): Promise<void> {
 	try {
 		if (task.kind === "brand" && task.companyId) {
 			const result = await runBrand({ companyId: task.companyId });
@@ -101,16 +107,18 @@ export async function runResearchLane(
 	if (tasks.length === 0) return 0;
 
 	await Promise.all(
-		tasks.map(async (task) => {
-			try {
-				await markRunning(task);
-				const session = await start(task);
-				await noteSession(task.id, session.id);
-			} catch (error) {
-				const reason = error instanceof Error ? error.message : String(error);
-				await settle(task, EnrichmentStatus.FAILED, reason).catch(() => {});
-			}
-		}),
+		tasks.map(async (task) =>
+			withTenant(task.organizationId, async () => {
+				try {
+					await markRunning(task);
+					const session = await start(task);
+					await noteSession(task.id, session.id);
+				} catch (error) {
+					const reason = error instanceof Error ? error.message : String(error);
+					await settle(task, EnrichmentStatus.FAILED, reason).catch(() => {});
+				}
+			}),
+		),
 	);
 
 	return tasks.length;
@@ -120,6 +128,7 @@ export function taskAuth(task: LeasedTask, base: AppAuth = APP_AUTH): AppAuth {
 	return {
 		...base,
 		attributes: {
+			organizationId: task.organizationId,
 			taskKind: task.kind,
 			reason: task.reason,
 			budget: String(task.budget),
@@ -131,10 +140,13 @@ export function taskAuth(task: LeasedTask, base: AppAuth = APP_AUTH): AppAuth {
 
 export const drainAll = collapsing(
 	async (start: (task: LeasedTask) => Promise<{ id: string }>) =>
-		withSoleTenant(async () => {
-			await retireAbandoned();
-			await Promise.all([runVisibleLane(), runResearchLane(start)]);
-		}),
+		acrossTenants(
+			"the queue is drained for every workspace at once",
+			async () => {
+				await retireAbandoned();
+				await Promise.all([runVisibleLane(), runResearchLane(start)]);
+			},
+		),
 );
 
 export function brief(task: LeasedTask): string {

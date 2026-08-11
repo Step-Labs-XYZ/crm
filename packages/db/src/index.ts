@@ -14,14 +14,14 @@ export type {
 	FactEvidence,
 	WorkspaceProfileSections,
 } from "./json";
-export { soleTenantId, withSoleTenant } from "./sole-tenant";
 export {
+	type AmbientTenantResolver,
 	acrossTenants,
 	currentScope,
 	currentTenant,
 	isTenantModel,
 	MissingTenantScopeError,
-	setSingleTenantProcess,
+	setAmbientTenantResolver,
 	TENANT_MODELS,
 	type TenantModel,
 	type TenantScope,

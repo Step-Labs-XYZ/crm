@@ -257,7 +257,7 @@ export class CompaniesService {
 	}
 
 	async options(q: string) {
-		return this.db.company.findMany({
+		return await this.db.company.findMany({
 			where: this.searchFilter(q),
 			select: { id: true, name: true, domain: true, iconUrl: true },
 			orderBy: { name: "asc" },

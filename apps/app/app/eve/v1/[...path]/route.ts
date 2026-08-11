@@ -58,6 +58,7 @@ async function handler(request: Request): Promise<Response> {
 				name: session.user.name,
 			},
 			{
+				organizationId: session.session.activeOrganizationId ?? undefined,
 				contactId: cuid(contactId),
 				companyId: cuid(companyId),
 				dealId: cuid(dealId),

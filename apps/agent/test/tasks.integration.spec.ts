@@ -32,7 +32,7 @@ afterEach(scoped(clear));
 async function queue(
 	overrides: { priority?: number; dueAt?: Date; contactId?: string } = {},
 ) {
-	return db.agentTask.create({
+	return await db.agentTask.create({
 		data: {
 			kind,
 			reason: "test",
@@ -53,7 +53,7 @@ async function expire(taskId: string) {
 }
 
 async function someone() {
-	return db.contact.create({
+	return await db.contact.create({
 		data: {
 			organizationId: TEST_TENANT,
 			firstName: "Lease",
