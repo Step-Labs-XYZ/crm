@@ -1,3 +1,5 @@
+import "@crm/env/load";
+
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import type { INestApplication } from "@nestjs/common";
 import { Test, type TestingModule } from "@nestjs/testing";
