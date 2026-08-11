@@ -10,6 +10,21 @@ const EMPTY: AllowList = { domains: [], addresses: [] };
 let cachedSource: string | undefined;
 let cached: AllowList = EMPTY;
 
+export function normalizeSignInEntry(raw: string): string {
+	return raw.trim().toLowerCase().replace(/^@/, "");
+}
+
+export function parseSignInEntries(source: string): readonly string[] {
+	const entries: string[] = [];
+
+	for (const raw of source.split(",")) {
+		const entry = normalizeSignInEntry(raw);
+		if (entry && !entries.includes(entry)) entries.push(entry);
+	}
+
+	return entries;
+}
+
 function allowList(): AllowList {
 	const source = process.env.ALLOWED_SIGN_IN ?? "";
 	if (source === cachedSource) return cached;
@@ -17,15 +32,17 @@ function allowList(): AllowList {
 	const domains: string[] = [];
 	const addresses: string[] = [];
 
-	for (const raw of source.split(",")) {
-		const entry = raw.trim().toLowerCase().replace(/^@/, "");
-		if (!entry) continue;
+	for (const entry of parseSignInEntries(source)) {
 		(entry.includes("@") ? addresses : domains).push(entry);
 	}
 
 	cachedSource = source;
 	cached = { domains, addresses };
 	return cached;
+}
+
+export function bootstrapSignInEntries(): readonly string[] {
+	return parseSignInEntries(process.env.ALLOWED_SIGN_IN ?? "");
 }
 
 export function workspaceDomains(): readonly string[] {
@@ -41,21 +58,32 @@ export function hasSignInAllowList(): boolean {
 	return domains.length > 0 || addresses.length > 0;
 }
 
-export function isWorkspaceEmail(email: string | null | undefined): boolean {
+export function signInCandidates(
+	email: string | null | undefined,
+): readonly string[] {
 	const value = email?.trim().toLowerCase();
-	if (!value) return false;
+	if (!value) return [];
 
 	const parts = value.split("@");
-	if (parts.length !== 2) return false;
+	if (parts.length !== 2) return [];
 
 	const [local, host] = parts;
-	if (!local || !host) return false;
+	if (!local || !host) return [];
 
-	const { domains, addresses } = allowList();
+	const labels = host.split(".");
+	const suffixes = labels.map((_, index) => labels.slice(index).join("."));
 
-	if (addresses.includes(value)) return true;
+	return [value, ...suffixes];
+}
 
-	return domains.some(
-		(domain) => host === domain || host.endsWith(`.${domain}`),
+export function isWorkspaceEmail(email: string | null | undefined): boolean {
+	const [address, ...domains] = signInCandidates(email);
+	if (!address) return false;
+
+	const list = allowList();
+
+	return (
+		list.addresses.includes(address) ||
+		domains.some((domain) => list.domains.includes(domain))
 	);
 }

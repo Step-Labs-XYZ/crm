@@ -1,4 +1,4 @@
-import { workspaceDomains } from "@crm/auth/workspace";
+import { tenantSignInDomains } from "@crm/auth/tenant";
 import { type Db, RecordSource } from "@crm/db";
 import { Injectable, Logger } from "@nestjs/common";
 import { AgentTriggerService } from "../agent/agent-trigger.service";
@@ -49,17 +49,23 @@ export class GoogleMatchService {
 		private readonly log: EnrichmentLogService,
 	) {}
 
-	async internalIdentity(): Promise<{
+	async internalIdentity(organizationId: string): Promise<{
 		addresses: Set<string>;
 		domains: Set<string>;
 	}> {
-		const users = await this.db.user.findMany({ select: { email: true } });
+		const [members, signInDomains] = await Promise.all([
+			this.db.member.findMany({
+				where: { organizationId },
+				select: { user: { select: { email: true } } },
+			}),
+			tenantSignInDomains(organizationId, this.db),
+		]);
 
 		const addresses = new Set<string>();
-		const domains = new Set<string>(workspaceDomains());
+		const domains = new Set<string>(signInDomains);
 
-		for (const user of users) {
-			const email = user.email.toLowerCase();
+		for (const member of members) {
+			const email = member.user.email.toLowerCase();
 			addresses.add(email);
 
 			const domain = workDomain(email);
@@ -67,6 +73,16 @@ export class GoogleMatchService {
 		}
 
 		return { addresses, domains };
+	}
+
+	async tenantOf(userId: string): Promise<string | null> {
+		const member = await this.db.member.findFirst({
+			where: { userId },
+			select: { organizationId: true },
+			orderBy: { createdAt: "asc" },
+		});
+
+		return member?.organizationId ?? null;
 	}
 
 	async suppressedDomains(): Promise<Set<string>> {

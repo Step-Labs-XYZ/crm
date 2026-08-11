@@ -8,4 +8,5 @@ export type BaseTrpcContext = {
 
 export type AuthedTrpcContext = BaseTrpcContext & {
 	user: SessionUser;
+	organizationId: string;
 };

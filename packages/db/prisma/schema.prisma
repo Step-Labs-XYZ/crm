@@ -636,8 +636,22 @@ model Organization {
   members     Member[]
   invitations Invitation[]
 
+  allowedSignIns AllowedSignIn[]
+
   @@unique([slug])
   @@map("organization")
+}
+
+model AllowedSignIn {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  entry          String
+  createdAt      DateTime     @default(now())
+
+  @@unique([entry])
+  @@index([organizationId])
+  @@map("allowedSignIn")
 }
 
 model WorkspaceProfile {

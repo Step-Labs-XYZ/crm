@@ -67,6 +67,15 @@ If you are about to add a vendor client to `apps/api`, you want
 
 ## There is exactly one organization, and it is not a tenancy boundary
 
+> **This fork no longer follows this rule.** Step Labs runs one workspace per
+> asset manager, so the organization *is* a tenancy boundary here: it is resolved
+> from the signed-in address and read off `AuthedTrpcContext.organizationId`, and
+> the allow-list is rows rather than one environment variable. The CRM records
+> themselves are not scoped yet. Read
+> [`docs/steplabs/tenancy.md`](./steplabs/tenancy.md) before working on anything
+> below. The rest of this section is upstream's reasoning, kept because it is
+> still the right default for a single-tenant install.
+
 This is an internal tool behind Google sign-in, and it is **single tenant**.
 There is no `x-organization-slug` header, no org context interceptor, no
 org-scoped cache keys, and **no `organizationId` on any CRM record**. A company,

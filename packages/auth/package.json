@@ -8,6 +8,7 @@
 		"./client": "./src/client.ts",
 		"./cookies": "./src/cookies.ts",
 		"./scopes": "./src/scopes.ts",
+		"./tenant": "./src/tenant.ts",
 		"./workspace": "./src/workspace.ts"
 	},
 	"scripts": {

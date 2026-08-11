@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
-import { isGoogleConfigured, WORKSPACE_ID } from "@crm/auth";
+import { isGoogleConfigured } from "@crm/auth";
 import type { Db } from "@crm/db";
-import { ForbiddenException } from "@nestjs/common";
+import { ForbiddenException, NotFoundException } from "@nestjs/common";
 import { SsoService } from "../src/sso/sso.service";
 
 type Row = {
@@ -20,8 +20,10 @@ const LIST = {
 	pageSize: 25,
 };
 
+const TENANT = "acme";
+
 function service(role: string | null, rows: Row[] = []) {
-	const seen: { providerWhere?: unknown } = {};
+	const seen: { providerWhere?: unknown; ownedWhere?: unknown } = {};
 
 	const db = {
 		member: {
@@ -31,6 +33,10 @@ function service(role: string | null, rows: Row[] = []) {
 			findMany: async ({ where }: { where: unknown }) => {
 				seen.providerWhere = where;
 				return rows;
+			},
+			findFirst: async ({ where }: { where: { organizationId: string } }) => {
+				seen.ownedWhere = where;
+				return where.organizationId === TENANT ? { id: "p1" } : null;
 			},
 			count: async () => rows.length,
 		},
@@ -54,21 +60,21 @@ describe("who may configure SSO", () => {
 	it("lets an owner and an admin", async () => {
 		for (const role of ["owner", "admin"]) {
 			const { sso } = service(role);
-			expect((await sso.settings("u1")).canConfigure).toBe(true);
+			expect((await sso.settings(TENANT, "u1")).canConfigure).toBe(true);
 		}
 	});
 
 	it("refuses a member, and refuses them the writes too", async () => {
 		const { sso } = service("member");
 
-		expect((await sso.settings("u1")).canConfigure).toBe(false);
+		expect((await sso.settings(TENANT, "u1")).canConfigure).toBe(false);
 
 		expect(
-			sso.remove("u1", new Headers(), { providerId: "okta" }),
+			sso.remove(TENANT, "u1", new Headers(), { providerId: "okta" }),
 		).rejects.toBeInstanceOf(ForbiddenException);
 
 		expect(
-			sso.register("u1", new Headers(), {
+			sso.register(TENANT, "u1", new Headers(), {
 				providerId: "okta",
 				issuer: "https://acme.okta.com",
 				domain: "acme.com",
@@ -80,14 +86,14 @@ describe("who may configure SSO", () => {
 
 	it("refuses somebody who is not in the workspace at all", async () => {
 		const { sso } = service(null);
-		expect((await sso.settings("u1")).canConfigure).toBe(false);
+		expect((await sso.settings(TENANT, "u1")).canConfigure).toBe(false);
 	});
 });
 
 describe("what a provider looks like once it is saved", () => {
 	it("never hands back the client secret", async () => {
 		const { sso } = service("owner", [OKTA]);
-		const [provider] = (await sso.list(LIST)).rows;
+		const [provider] = (await sso.list(TENANT, LIST)).rows;
 
 		expect(JSON.stringify(provider)).not.toContain("shhh");
 		expect(provider?.clientIdLastFour).toBe("WXYZ");
@@ -95,7 +101,7 @@ describe("what a provider looks like once it is saved", () => {
 
 	it("splits the domains and names the callback the IdP needs", async () => {
 		const { sso } = service("owner", [OKTA]);
-		const [provider] = (await sso.list(LIST)).rows;
+		const [provider] = (await sso.list(TENANT, LIST)).rows;
 
 		expect(provider?.domains).toEqual(["acme.com", "subsidiary.com"]);
 		expect(provider?.type).toBe("oidc");
@@ -103,19 +109,31 @@ describe("what a provider looks like once it is saved", () => {
 		expect(provider?.callbackURL).toEndWith("/api/auth/sso/callback/okta");
 	});
 
-	it("reads only the one workspace, never an organization it was passed", async () => {
+	it("reads the organization it was passed, and never a second one", async () => {
 		const { sso, seen } = service("owner", [OKTA]);
-		await sso.list(LIST);
+		await sso.list(TENANT, LIST);
 
-		expect(seen.providerWhere).toEqual({ organizationId: WORKSPACE_ID });
+		expect(seen.providerWhere).toEqual({ organizationId: TENANT });
+
+		await sso.list("other-tenant", LIST);
+
+		expect(seen.providerWhere).toEqual({ organizationId: "other-tenant" });
+	});
+
+	it("refuses to delete a provider that belongs to another tenant", async () => {
+		const { sso } = service("owner", [OKTA]);
+
+		expect(
+			sso.remove("other-tenant", "u1", new Headers(), { providerId: "okta" }),
+		).rejects.toBeInstanceOf(NotFoundException);
 	});
 
 	it("searches the name, the domain and the issuer", async () => {
 		const { sso, seen } = service("owner", [OKTA]);
-		await sso.list({ ...LIST, q: " acme " });
+		await sso.list(TENANT, { ...LIST, q: " acme " });
 
 		expect(seen.providerWhere).toEqual({
-			organizationId: WORKSPACE_ID,
+			organizationId: TENANT,
 			OR: [
 				{ providerId: { contains: "acme", mode: "insensitive" } },
 				{ domain: { contains: "acme", mode: "insensitive" } },

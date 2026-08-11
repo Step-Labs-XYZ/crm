@@ -34,13 +34,16 @@ export class SsoRouter {
 	@Query()
 	@UseMiddlewares(AuthMiddleware)
 	async settings(@Ctx() ctx: AuthedTrpcContext) {
-		return this.sso.settings(ctx.user.id);
+		return this.sso.settings(ctx.organizationId, ctx.user.id);
 	}
 
 	@Query({ input: ssoProviderListInput })
 	@UseMiddlewares(AuthMiddleware)
-	async list(@Input() input: z.infer<typeof ssoProviderListInput>) {
-		return this.sso.list(input);
+	async list(
+		@Ctx() ctx: AuthedTrpcContext,
+		@Input() input: z.infer<typeof ssoProviderListInput>,
+	) {
+		return this.sso.list(ctx.organizationId, input);
 	}
 
 	@Mutation({ input: registerSsoProviderInput })
@@ -49,7 +52,12 @@ export class SsoRouter {
 		@Ctx() ctx: AuthedTrpcContext,
 		@Input() input: z.infer<typeof registerSsoProviderInput>,
 	) {
-		return this.sso.register(ctx.user.id, headersOf(ctx), input);
+		return this.sso.register(
+			ctx.organizationId,
+			ctx.user.id,
+			headersOf(ctx),
+			input,
+		);
 	}
 
 	@Mutation({ input: deleteSsoProviderInput })
@@ -58,6 +66,11 @@ export class SsoRouter {
 		@Ctx() ctx: AuthedTrpcContext,
 		@Input() input: z.infer<typeof deleteSsoProviderInput>,
 	) {
-		return this.sso.remove(ctx.user.id, headersOf(ctx), input);
+		return this.sso.remove(
+			ctx.organizationId,
+			ctx.user.id,
+			headersOf(ctx),
+			input,
+		);
 	}
 }

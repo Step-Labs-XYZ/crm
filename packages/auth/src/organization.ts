@@ -1,5 +1,6 @@
 import { db } from "@crm/db";
 import { WORKSPACE_ID, workspaceSlug } from "@crm/db/workspace";
+import { organizationForEmail, seedBootstrapTenant } from "./tenant";
 
 export { WORKSPACE_ID };
 
@@ -30,17 +31,33 @@ export async function ensureWorkspaceMembership(
 ): Promise<string | undefined> {
 	try {
 		return await db.$transaction(async (tx) => {
-			const workspace = await tx.organization.upsert({
-				where: { id: WORKSPACE_ID },
-				create: {
-					id: WORKSPACE_ID,
-					name: DEFAULT_WORKSPACE_NAME,
-					slug: workspaceSlug(DEFAULT_WORKSPACE_NAME),
-					createdAt: new Date(),
-				},
-				update: {},
+			const user = await tx.user.findUnique({
+				where: { id: userId },
+				select: { email: true },
+			});
+
+			await seedBootstrapTenant(
+				tx,
+				WORKSPACE_ID,
+				DEFAULT_WORKSPACE_NAME,
+				workspaceSlug(DEFAULT_WORKSPACE_NAME),
+			);
+
+			const organizationId = await organizationForEmail(user?.email, tx);
+
+			if (!organizationId) {
+				console.error(
+					`[auth] ${userId} signed in with an address no tenant admits; they have no workspace`,
+				);
+				return undefined;
+			}
+
+			const workspace = await tx.organization.findUnique({
+				where: { id: organizationId },
 				select: { id: true, name: true, slug: true },
 			});
+
+			if (!workspace) return undefined;
 
 			const slug = workspaceSlug(workspace.name);
 
@@ -48,28 +65,6 @@ export async function ensureWorkspaceMembership(
 				await tx.organization.update({
 					where: { id: workspace.id },
 					data: { slug },
-				});
-			}
-
-			const enrolled = await tx.member.count({
-				where: { organizationId: workspace.id },
-			});
-
-			if (enrolled === 0) {
-				const existing = await tx.user.findMany({
-					select: { id: true },
-					orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-				});
-
-				await tx.member.createMany({
-					data: existing.map((user, index) => ({
-						id: crypto.randomUUID(),
-						organizationId: workspace.id,
-						userId: user.id,
-						role: index === 0 ? "owner" : "member",
-						createdAt: new Date(),
-					})),
-					skipDuplicates: true,
 				});
 			}
 
@@ -91,7 +86,7 @@ export async function ensureWorkspaceMembership(
 		});
 	} catch (error) {
 		console.error(
-			`[auth] could not enrol user ${userId} in workspace ${WORKSPACE_ID}; the next sign-in will retry`,
+			`[auth] could not enrol user ${userId} in their workspace; the next sign-in will retry`,
 			error,
 		);
 		return undefined;
