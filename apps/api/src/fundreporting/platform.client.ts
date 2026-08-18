@@ -67,6 +67,7 @@ export class PlatformClient implements PlatformApi {
 	): Promise<PlatformOutcome<T>> {
 		const base = process.env.PLATFORM_API_URL;
 		const token = process.env.PLATFORM_SERVICE_TOKEN;
+		const dataSource = process.env.PLATFORM_DATA_SOURCE;
 
 		if (!base || !token) {
 			return { ok: false, retryable: false, reason: NOT_CONFIGURED };
@@ -79,6 +80,10 @@ export class PlatformClient implements PlatformApi {
 				method,
 				headers: {
 					authorization: `Bearer ${token}`,
+					// Xano keeps one schema per workspace and one set of rows per data
+					// source, selected by this header. Unset means `live` — production —
+					// so a dev install says so explicitly and nothing else changes.
+					...(dataSource ? { "x-data-source": dataSource } : {}),
 					...(body ? { "content-type": "application/json" } : {}),
 				},
 				...(body ? { body: JSON.stringify(body) } : {}),
