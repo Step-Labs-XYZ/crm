@@ -31,7 +31,9 @@ export const auth = betterAuth({
 	}),
 
 	emailAndPassword: {
-		enabled: false,
+		// DEV ONLY (feat/tenancy-auth-workspace-wsl): local email/password login for the
+		// preview meeting, gated by DEV_LOCAL_LOGIN=1. Strip before merging upstream.
+		enabled: process.env.DEV_LOCAL_LOGIN === "1",
 	},
 
 	socialProviders,
