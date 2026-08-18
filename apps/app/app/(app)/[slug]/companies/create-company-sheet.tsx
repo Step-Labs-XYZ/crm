@@ -66,10 +66,14 @@ function CreateCompanyForm() {
 	);
 	const [name, setName] = useState("");
 	const [domain, setDomain] = useState("");
+	const [registrationNumber, setRegistrationNumber] = useState("");
+	const [currency, setCurrency] = useState("");
 	const [ownerId, setOwnerId] = useState(UNASSIGNED);
 
 	const nameId = useId();
 	const domainId = useId();
+	const registrationId = useId();
+	const currencyId = useId();
 
 	const users = useQuery(trpc.users.list.queryOptions());
 
@@ -81,6 +85,8 @@ function CreateCompanyForm() {
 				await setOpen(null);
 				setName("");
 				setDomain("");
+				setRegistrationNumber("");
+				setCurrency("");
 				setOwnerId(UNASSIGNED);
 				openRecord({ kind: "company", id: company.id });
 			},
@@ -110,6 +116,8 @@ function CreateCompanyForm() {
 						create.mutate({
 							name,
 							domain: domain || undefined,
+							registrationNumber: registrationNumber || undefined,
+							currency: currency || undefined,
 							ownerId: ownerId === UNASSIGNED ? null : ownerId,
 						});
 					}}
@@ -141,6 +149,29 @@ function CreateCompanyForm() {
 								A full URL is fine — it is reduced to the bare host, which has
 								to be unique.
 							</FieldDescription>
+						</Field>
+
+						<Field>
+							<FieldLabel htmlFor={registrationId}>Registration no.</FieldLabel>
+							<Input
+								id={registrationId}
+								value={registrationNumber}
+								onChange={(event) => setRegistrationNumber(event.target.value)}
+								placeholder="IE 552 118 09"
+								autoComplete="off"
+							/>
+						</Field>
+
+						<Field>
+							<FieldLabel htmlFor={currencyId}>Currency</FieldLabel>
+							<Input
+								id={currencyId}
+								value={currency}
+								onChange={(event) => setCurrency(event.target.value)}
+								placeholder="EUR"
+								maxLength={3}
+								autoComplete="off"
+							/>
 						</Field>
 
 						<Field>

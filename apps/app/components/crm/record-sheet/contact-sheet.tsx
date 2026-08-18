@@ -3,6 +3,7 @@
 import Email from "@carbon/icons-react/es/Email";
 import Partnership from "@carbon/icons-react/es/Partnership";
 import Star from "@carbon/icons-react/es/Star";
+import type { InvestorClassification } from "@crm/db/enums";
 import {
 	Accordion,
 	AccordionContent,
@@ -40,6 +41,10 @@ import {
 	InlineSelectField,
 	savingField,
 } from "@/components/crm/inline-field";
+import {
+	classificationLabel,
+	INVESTOR_CLASSIFICATIONS,
+} from "@/components/crm/investor-classification";
 import { OwnerCell } from "@/components/crm/owner-cell";
 import { ContactSocials, hasContactLinks } from "@/components/crm/social-links";
 import { DealStageMenu } from "@/components/crm/stage-change";
@@ -371,6 +376,28 @@ function ContactOverview({ contact }: { contact: Contact }) {
 						saving={isSaving("githubUrl")}
 						onSave={(githubUrl) => save({ githubUrl })}
 						{...agentProps("githubUrl")}
+					/>
+					<InlineSelectField
+						label="Classification"
+						value={contact.investorClassification ?? NONE}
+						options={[
+							{ value: NONE, label: "Not set" },
+							...INVESTOR_CLASSIFICATIONS.map((value) => ({
+								value,
+								label: classificationLabel(value) ?? value,
+							})),
+						]}
+						onSave={(value) =>
+							save({
+								investorClassification:
+									value === NONE ? null : (value as InvestorClassification),
+							})
+						}
+					/>
+					<InlineField
+						label="Referred by"
+						value={contact.referrerEmail ?? ""}
+						onSave={(referrerEmail) => save({ referrerEmail })}
 					/>
 					<InlineSelectField
 						label="Company"

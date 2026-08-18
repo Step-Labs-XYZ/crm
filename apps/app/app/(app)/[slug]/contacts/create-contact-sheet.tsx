@@ -1,6 +1,7 @@
 "use client";
 
 import Add from "@carbon/icons-react/es/Add";
+import type { InvestorClassification } from "@crm/db/enums";
 import { Button } from "@crm/ui/components/button";
 import { Field, FieldGroup, FieldLabel } from "@crm/ui/components/field";
 import { Icon } from "@crm/ui/components/icon";
@@ -27,6 +28,10 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { parseAsBoolean, useQueryState } from "nuqs";
 import { Suspense, useId, useState } from "react";
 import { toast } from "sonner";
+import {
+	classificationLabel,
+	INVESTOR_CLASSIFICATIONS,
+} from "@/components/crm/investor-classification";
 import { useOpenRecord } from "@/components/crm/record-sheet/record-stack";
 import { useCrmCache } from "@/lib/trpc/cache";
 import { useTRPC } from "@/lib/trpc/client";
@@ -63,6 +68,8 @@ function CreateContactForm({ companyId }: { companyId?: string }) {
 	const [lastName, setLastName] = useState("");
 	const [email, setEmail] = useState("");
 	const [title, setTitle] = useState("");
+	const [classification, setClassification] = useState(NONE);
+	const [referrerEmail, setReferrerEmail] = useState("");
 	const [company, setCompany] = useState(companyId ?? NONE);
 	const [ownerId, setOwnerId] = useState(NONE);
 
@@ -70,6 +77,7 @@ function CreateContactForm({ companyId }: { companyId?: string }) {
 	const lastNameId = useId();
 	const emailId = useId();
 	const titleId = useId();
+	const referrerId = useId();
 
 	const users = useQuery(trpc.users.list.queryOptions());
 	const companies = useQuery(trpc.companies.options.queryOptions({ q: "" }));
@@ -86,6 +94,8 @@ function CreateContactForm({ companyId }: { companyId?: string }) {
 				setLastName("");
 				setEmail("");
 				setTitle("");
+				setClassification(NONE);
+				setReferrerEmail("");
 				openRecord({ kind: "contact", id: contact.id });
 			},
 			onError: (error) => toast.error(error.message),
@@ -116,6 +126,11 @@ function CreateContactForm({ companyId }: { companyId?: string }) {
 							lastName: lastName || undefined,
 							email: email || undefined,
 							title: title || undefined,
+							investorClassification:
+								classification === NONE
+									? undefined
+									: (classification as InvestorClassification),
+							referrerEmail: referrerEmail || undefined,
 							companyId: company === NONE ? null : company,
 							ownerId: ownerId === NONE ? null : ownerId,
 						});
@@ -161,6 +176,37 @@ function CreateContactForm({ companyId }: { companyId?: string }) {
 								value={title}
 								onChange={(event) => setTitle(event.target.value)}
 								placeholder="Head of Security"
+								autoComplete="off"
+							/>
+						</Field>
+
+						<Field>
+							<FieldLabel htmlFor="create-contact-classification">
+								Classification
+							</FieldLabel>
+							<Select value={classification} onValueChange={setClassification}>
+								<SelectTrigger id="create-contact-classification">
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value={NONE}>Not set</SelectItem>
+									{INVESTOR_CLASSIFICATIONS.map((value) => (
+										<SelectItem key={value} value={value}>
+											{classificationLabel(value)}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</Field>
+
+						<Field>
+							<FieldLabel htmlFor={referrerId}>Referred by</FieldLabel>
+							<Input
+								id={referrerId}
+								type="email"
+								value={referrerEmail}
+								onChange={(event) => setReferrerEmail(event.target.value)}
+								placeholder="who.introduced@them.com"
 								autoComplete="off"
 							/>
 						</Field>
