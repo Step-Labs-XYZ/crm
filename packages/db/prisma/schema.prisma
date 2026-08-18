@@ -127,6 +127,12 @@ enum EnrichmentStatus {
   SKIPPED
 }
 
+enum InvestorClassification {
+  RETAIL
+  PROFESSIONAL
+  INSTITUTIONAL
+}
+
 enum RecordSource {
   MANUAL
   IMPORT
@@ -151,8 +157,10 @@ model Company {
   iconTone    String?
   brandColor  String?
 
-  industry    String?
-  subIndustry String?
+  industry           String?
+  subIndustry        String?
+  registrationNumber String?
+  currency           String?
   city        String?
   stateCode   String?
   country     String?
@@ -227,6 +235,9 @@ model Contact {
 
   socialsCheckedAt DateTime?
 
+  investorClassification InvestorClassification?
+  referrerEmail          String?
+
   enrichmentStatus EnrichmentStatus @default(PENDING)
   enrichedAt       DateTime?
   enrichmentError  String?
@@ -258,6 +269,7 @@ model Contact {
   @@index([companyId])
   @@index([ownerId])
   @@index([lastActivityAt])
+  @@index([organizationId, investorClassification])
   @@map("contact")
 }
 
