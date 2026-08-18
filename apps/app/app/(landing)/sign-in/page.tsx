@@ -6,6 +6,7 @@ import { getSession } from "@/lib/session";
 import { getServerQueryClient, getServerTrpc } from "@/lib/trpc/server";
 import { GoogleSignIn } from "./google-sign-in";
 import { type SsoProvider, SsoSignIn } from "./sso-sign-in";
+import { DevSignIn } from "./dev-sign-in";
 
 export const metadata: Metadata = {
 	title: "Sign in",
@@ -61,12 +62,13 @@ async function SignIn({
 
 	const google = options?.google ?? true;
 	const providers = options?.providers ?? [];
+	const devLogin = process.env.DEV_LOCAL_LOGIN === "1";
 
 	const insistOnGoogle = method === "google" && google;
 	const showSso = providers.length > 0 && !insistOnGoogle;
 	const showGoogle = google && (providers.length === 0 || insistOnGoogle);
 
-	if (!showSso && !showGoogle) {
+	if (!showSso && !showGoogle && !devLogin) {
 		return (
 			<>
 				<AuthHeading
@@ -92,6 +94,7 @@ async function SignIn({
 
 			{showSso ? <SsoSignIn providers={providers} /> : null}
 			{showGoogle ? <GoogleSignIn /> : null}
+			{devLogin ? <DevSignIn /> : null}
 		</>
 	);
 }
