@@ -8,8 +8,6 @@ import { Spinner } from "@crm/ui/components/spinner";
 import { type FormEvent, useState } from "react";
 import { toast } from "sonner";
 
-// DEV ONLY (feat/tenancy-auth-workspace-wsl): local email/password login for the
-// preview meeting. Rendered only when DEV_LOCAL_LOGIN=1. Strip before merging.
 export function DevSignIn() {
 	const [email, setEmail] = useState("demo@steplabs.xyz");
 	const [password, setPassword] = useState("");
