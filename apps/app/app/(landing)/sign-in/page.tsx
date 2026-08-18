@@ -4,9 +4,9 @@ import { Suspense } from "react";
 import { AuthHeading, AuthShell } from "@/components/auth-shell";
 import { getSession } from "@/lib/session";
 import { getServerQueryClient, getServerTrpc } from "@/lib/trpc/server";
+import { DevSignIn } from "./dev-sign-in";
 import { GoogleSignIn } from "./google-sign-in";
 import { type SsoProvider, SsoSignIn } from "./sso-sign-in";
-import { DevSignIn } from "./dev-sign-in";
 
 export const metadata: Metadata = {
 	title: "Sign in",

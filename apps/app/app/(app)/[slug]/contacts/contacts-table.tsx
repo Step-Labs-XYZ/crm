@@ -11,6 +11,10 @@ import { relativeTimeFromIso } from "@crm/ui/lib/format";
 import { useQuery } from "@tanstack/react-query";
 import { CompanyCell } from "@/components/crm/company-cell";
 import { contactName } from "@/components/crm/contact-name";
+import {
+	classificationLabel,
+	INVESTOR_CLASSIFICATIONS,
+} from "@/components/crm/investor-classification";
 import { OwnerCell } from "@/components/crm/owner-cell";
 import { usePrefetchRecord } from "@/components/crm/record-sheet/record-prefetch";
 import { useOpenRecord } from "@/components/crm/record-sheet/record-stack";
@@ -40,6 +44,15 @@ const COLUMNS: DataTableColumn<ContactRow>[] = [
 				<span className="truncate font-medium">{contactName(row)}</span>
 			</span>
 		),
+	},
+	{
+		id: "classification",
+		header: "Classification",
+		sortable: true,
+		width: "w-[14%]",
+		hideBelow: "lg",
+		cell: (row) =>
+			classificationLabel(row.investorClassification) ?? <EmptyCellValue />,
 	},
 	{
 		id: "title",
@@ -148,6 +161,19 @@ export function ContactsTable() {
 					label: company.name,
 				})),
 			].filter((option) => (facetCounts?.company?.[option.value] ?? 0) > 0),
+		},
+		{
+			id: "classification",
+			label: "Classification",
+			options: [
+				{ value: "none", label: "Not set" },
+				...INVESTOR_CLASSIFICATIONS.map((value) => ({
+					value,
+					label: classificationLabel(value) ?? value,
+				})),
+			].filter(
+				(option) => (facetCounts?.classification?.[option.value] ?? 0) > 0,
+			),
 		},
 	];
 
