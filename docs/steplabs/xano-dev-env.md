@@ -95,19 +95,34 @@ X-Data-Source: dev
 
 Sin ese header, Xano usa `live`. Es decir: **omitirlo es pegarle a producción.**
 
-Estado del cableado (a 2026-08-18): **pendiente en ambos repos.**
+- **CRM** — tiene un solo cliente (`apps/api/src/fundreporting/platform.client.ts`), así
+  que fue un cambio de una línea: manda el header cuando `PLATFORM_DATA_SOURCE` está
+  seteada. Sin la variable el comportamiento es idéntico al anterior. ✔ hecho.
+- **fundreporting-v2** — arma sus llamadas en **253 lugares de 149 archivos**, cada uno
+  con sus headers inline. Va por un **proxy local** (`scripts/xano-dev-proxy.mjs`): en un
+  checkout de dev, `PLATFORM_API_URL` y `XANO_API_URL` apuntan al proxy, que agrega el
+  header y reenvía a Xano. ✔ hecho.
 
-- **fundreporting-v2** — hoy cada `fetch()` a Xano arma sus headers inline (≈235
-  referencias, sin cliente compartido). Para apuntar a dev hay que introducir un helper
-  único (p. ej. `lib/xano.ts`) que agregue `X-Data-Source` desde una env var y que todas
-  las rutas usen. Recomendado hacerlo junto con el **kill-switch read-only** que hoy no
-  existe. Env sugerida: `XANO_DATA_SOURCE=dev`.
-- **CRM** — un solo cliente (`apps/api/src/fundreporting/platform.client.ts`), así que es
-  un cambio de una línea en `call()`: agregar el header cuando la env esté seteada.
-  Env sugerida: `PLATFORM_DATA_SOURCE=dev`.
+### Por qué un proxy y no un parche de `fetch` (esto costó caro)
 
-Hasta que eso exista, **ninguna app está apuntando a `dev`** — fundreporting-v2 sigue
-hablando con `live`. No correr mutaciones desde la app mientras tanto.
+El primer intento fue envolver `globalThis.fetch` desde `instrumentation.ts`. Pasó una
+prueba aislada con los 4 casos (GET, POST con body, objeto `Request`, otro host) y **aun
+así falló dentro de Next**: Next tiene su propio wrapper de `fetch` y las llamadas de la
+app lo esquivaron. Un signup destinado a `dev` **creó un usuario en producción**
+(`user` 249 → 250; se borró después).
+
+Lecciones, en orden de importancia:
+
+1. **La costura confiable es la URL, no el call site.** Con el proxy no hay forma de que
+   una llamada se escape: el destino *es* el proxy. Un parche depende de que nadie más
+   toque el mismo global.
+2. **Verificar con una LECTURA que discrimine, nunca con una escritura.** La prueba buena
+   es: intentar login con un usuario que existe solo en `live`. Si falla, estás en `dev`.
+   Si la verificación puede ensuciar producción, no es una verificación.
+3. **Una prueba aislada no prueba el sistema.** El wrapper funcionaba perfecto fuera de
+   Next; adentro no corría siquiera.
+4. El proxy **registra cada llamada** con el data source usado, así que a dónde fue un
+   request se *ve*, no se supone.
 
 ---
 
@@ -121,6 +136,10 @@ hablando con `live`. No correr mutaciones desde la app mientras tanto.
 - ✅ **Crear a mano** 1 `asset_manager`, 1 `fund` y 1 `user` de prueba, **ficticios**.
 - ❌ **Nunca** copiar la cartera real: inversionistas, `cap_table_*`, `compliance_*`,
   documentos.
+
+Estado (2026-08-18): catálogos ✔ sembrados (currency 47, country 249, asset_class 22,
+transaction_type 14) y un usuario de prueba `demo@steplabs.xyz` creado vía el signup de
+la app apuntada al proxy. Las tablas de la cartera siguen en 0.
 
 El script `xano-seed-dev.mjs` (en `steplabs/preview-demo/`, junto al runbook local) hace
 la parte de catálogos. Escribe siempre con `X-Data-Source: dev` — la constante está
