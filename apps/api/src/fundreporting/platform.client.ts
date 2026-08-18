@@ -80,9 +80,6 @@ export class PlatformClient implements PlatformApi {
 				method,
 				headers: {
 					authorization: `Bearer ${token}`,
-					// Xano keeps one schema per workspace and one set of rows per data
-					// source, selected by this header. Unset means `live` — production —
-					// so a dev install says so explicitly and nothing else changes.
 					...(dataSource ? { "x-data-source": dataSource } : {}),
 					...(body ? { "content-type": "application/json" } : {}),
 				},
