@@ -1,64 +1,64 @@
-# El entorno dev de Xano, y cómo conectarse desde cualquier máquina
+# The Xano dev environment, and how to connect from any machine
 
-Runbook de Step Labs. FundReporting corre sobre **Xano**, y hasta el 2026-08-18 existía
-**una sola** base: producción. Este documento describe el entorno `dev` que se creó para
-poder desarrollar sin tocar datos reales, y todo lo que hace falta para conectarse desde
-otra computadora.
+FundReporting runs on **Xano**, and until 2026-08-18 there was exactly one database:
+production. This is the record of the `dev` environment built beside it so we can develop
+without touching real data, and of everything a second machine needs to reach the same
+state.
 
-> Aplica a los dos proyectos: este CRM (el handoff de `apps/api/src/fundreporting/`) y
-> `fundreporting-v2` (el Next.js que consume Xano).
+> It covers both projects: this CRM (the handoff in `apps/api/src/fundreporting/`) and
+> `fundreporting-v2`, the Next.js app that consumes Xano.
 
 ---
 
-## 1. Qué existe hoy en Xano
+## 1. What exists in Xano today
 
-Instancia (cuenta **del cliente**): `xjcl-a4qe-ykfx.f2.xano.io`
-Workspace: **`fundreporting-nextjs`** (id `4`) — 44 tablas.
+Instance (the **client's** account): `xjcl-a4qe-ykfx.f2.xano.io`
+Workspace: **`fundreporting-nextjs`** (id `4`) — 44 tables.
 
-| Data source | Uso | Estado |
+| Data source | Purpose | State |
 | --- | --- | --- |
-| `live` | **producción** — cartera real, cap tables, KYC | intocable |
-| `dev` | desarrollo | creado 2026-08-18 |
+| `live` | **production** — the real book, cap tables, KYC | untouchable |
+| `dev` | development | created 2026-08-18 |
 
-Branches de lógica: solo **`v1`** (live). **No se creó branch dev todavía** — ver §6.
+Logic branches: only **`v1`** (live). **No dev branch yet** — see §6.
 
-**Qué significa un data source.** En Xano el *schema* (las 44 tablas) y la *lógica*
-(endpoints, funciones) viven a nivel workspace/branch y se **comparten**; el data source
-solo separa **los datos**. Verificado al crearlo:
+**What a data source is.** In Xano the *schema* (the 44 tables) and the *logic* (endpoints,
+functions) live at workspace/branch level and are **shared**; a data source separates only
+**the rows**. Verified on creation:
 
 ```
               live    dev
-tablas          44     44     <- mismo schema
+tables          44     44     <- same schema
 asset_manager   10      0
 currency        47      0
-fund            36      0     <- datos aislados
+fund            36      0     <- separate data
 ```
 
-### Consecuencia importante (leer antes de tocar nada)
+### The consequence to read before touching anything
 
-Como la **lógica y las API keys externas son compartidas con `live`**, el data source `dev`
-aísla los datos pero **no** aísla:
+Because the logic and the external API keys are shared with `live`, the `dev` data source
+isolates data but does **not** isolate:
 
-- **Resend** (emails). Un flujo de envío masivo en dev mandaría correos **reales** a
-  inversionistas reales. Un OTP a tu propia casilla es inofensivo; los envíos masivos no.
-- **EODHD**, Google Maps, Anthropic, y cualquier webhook configurado.
-- Cambiar un endpoint en la branch `v1` **cambia producción**.
+- **Resend** (email). A bulk send in dev would mail **real** investors. An OTP to your own
+  inbox is harmless; a bulk send is not.
+- **EODHD**, Google Maps, Anthropic, and any configured webhook.
+- Editing an endpoint on branch `v1` **changes production**.
 
-**Reglas de oro:** trabajar siempre apuntando a `dev`; no disparar flujos de email masivo;
-no editar endpoints/funciones de la branch `v1` sin branch dev (§6).
+**Ground rules:** always point at `dev`; never trigger bulk email flows; never edit the
+endpoints or functions on branch `v1` without a dev branch (§6).
 
 ---
 
-## 2. Credenciales, y dónde viven
+## 2. Credentials, and where they live
 
-Nada de esto se commitea. En cada máquina va en el store del harness,
-`~/.config/step-labs-harness/secrets.env` (modo `600`):
+None of this is committed. On each machine it goes in the harness secret store,
+`~/.config/step-labs-harness/secrets.env` (mode `600`):
 
-| Clave | Para qué |
+| Key | What it is for |
 | --- | --- |
-| `SL_SECRET_STEP_LABS_XANO_FUNDREPORTING_META` | **Metadata API token** — inspeccionar/administrar Xano (schema, data sources, seeding). No lo usan las apps. |
+| `SL_SECRET_STEP_LABS_XANO_FUNDREPORTING_META` | **Metadata API token** — inspecting and administering Xano (schema, data sources, seeding). The apps never use it. |
 
-Para poner el token en otra máquina, sin que quede en el historial del shell:
+To install the token on another machine without it reaching the shell history:
 
 ```bash
 read -rs XANO && \
@@ -66,142 +66,146 @@ read -rs XANO && \
   unset XANO && echo ok
 ```
 
-Verificar que funciona (solo lectura):
+Check that it works (read-only):
 
 ```bash
 TOKEN=$(grep -E '^SL_SECRET_STEP_LABS_XANO_FUNDREPORTING_META=' \
   ~/.config/step-labs-harness/secrets.env | cut -d= -f2-)
 curl -sS -H "Authorization: Bearer $TOKEN" \
   https://xjcl-a4qe-ykfx.f2.xano.io/api:meta/workspace/4/datasource
-# esperado: [{"label":"live",...},{"label":"dev",...}]
+# expected: [{"label":"live",...},{"label":"dev",...}]
 ```
 
-**Todavía falta** (hay que pedírselo al cliente, ver `fundreporting-handoff.md`):
+**The metadata token does not authenticate the application API.** Proven: a `GET` against
+`api:GOD16uGH/currency` answers `401` with it and without it alike. They are two separate
+auth systems, and a token for one says nothing about the other.
 
-- `PLATFORM_SERVICE_TOKEN` con permiso de **escritura** sobre `investor_lead` — sin él el
-  handoff del CRM no puede filar. El `XANO_PROXY_SECRET` **no sirve**: es el secreto del
-  proxy de login, y lo que emite es la sesión de *una persona*.
-- El **UUID de asset manager** por workspace (`organization.assetManagerId`).
+**Still missing for production** (the client has to issue it — see
+`fundreporting-handoff.md`):
+
+- A `PLATFORM_SERVICE_TOKEN` that may **write** `investor_lead`. `XANO_PROXY_SECRET` is not
+  a substitute: it is the shared secret of their login proxy, and what it mints is one
+  *person's* session.
+- The **asset-manager UUID** per workspace (`organization.assetManagerId`).
 
 ---
 
-## 3. Cómo se apunta una app a `dev`
+## 3. How an app is pointed at `dev`
 
-Las llamadas a la API de Xano seleccionan la base con el header:
+Xano selects the database per request from this header:
 
 ```
 X-Data-Source: dev
 ```
 
-Sin ese header, Xano usa `live`. Es decir: **omitirlo es pegarle a producción.**
+With no header Xano uses `live`. **Omitting it is writing to production.**
 
-- **CRM** — tiene un solo cliente (`apps/api/src/fundreporting/platform.client.ts`), así
-  que fue un cambio de una línea: manda el header cuando `PLATFORM_DATA_SOURCE` está
-  seteada. Sin la variable el comportamiento es idéntico al anterior. ✔ hecho.
-- **fundreporting-v2** — arma sus llamadas en **253 lugares de 149 archivos**, cada uno
-  con sus headers inline. Va por un **proxy local** (`scripts/xano-dev-proxy.mjs`): en un
-  checkout de dev, `PLATFORM_API_URL` y `XANO_API_URL` apuntan al proxy, que agrega el
-  header y reenvía a Xano. ✔ hecho.
+- **CRM** — one client (`apps/api/src/fundreporting/platform.client.ts`), so this was a
+  one-line change: it sends the header when `PLATFORM_DATA_SOURCE` is set. Without the
+  variable the behaviour is identical to before. ✔ done.
+- **fundreporting-v2** — builds its Xano calls in **253 places across 149 files**, each
+  assembling headers inline. It goes through a **local proxy**
+  (`scripts/xano-dev-proxy.mjs`): in a dev checkout, `PLATFORM_API_URL` and `XANO_API_URL`
+  point at the proxy, which adds the header and forwards. ✔ done.
 
-### Por qué un proxy y no un parche de `fetch` (esto costó caro)
+### Why a proxy and not a `fetch` patch (this one cost us)
 
-El primer intento fue envolver `globalThis.fetch` desde `instrumentation.ts`. Pasó una
-prueba aislada con los 4 casos (GET, POST con body, objeto `Request`, otro host) y **aun
-así falló dentro de Next**: Next tiene su propio wrapper de `fetch` y las llamadas de la
-app lo esquivaron. Un signup destinado a `dev` **creó un usuario en producción**
-(`user` 249 → 250; se borró después).
+The first attempt wrapped `globalThis.fetch` from `instrumentation.ts`. It passed an
+isolated test covering all four cases — GET, POST with a body, a `Request` object, a
+different host — and **still failed inside Next**: Next wraps `fetch` itself and the app's
+calls went around the patch. A signup meant for `dev` **created a user in production**
+(`user` 249 → 250; removed afterwards).
 
-Lecciones, en orden de importancia:
+The lessons, in order of value:
 
-1. **La costura confiable es la URL, no el call site.** Con el proxy no hay forma de que
-   una llamada se escape: el destino *es* el proxy. Un parche depende de que nadie más
-   toque el mismo global.
-2. **Verificar con una LECTURA que discrimine, nunca con una escritura.** La prueba buena
-   es: intentar login con un usuario que existe solo en `live`. Si falla, estás en `dev`.
-   Si la verificación puede ensuciar producción, no es una verificación.
-3. **Una prueba aislada no prueba el sistema.** El wrapper funcionaba perfecto fuera de
-   Next; adentro no corría siquiera.
-4. El proxy **registra cada llamada** con el data source usado, así que a dónde fue un
-   request se *ve*, no se supone.
+1. **The reliable seam is the URL, not the call site.** With a proxy no call can escape,
+   because the proxy *is* the destination. A patch depends on nothing else touching the
+   same global.
+2. **Verify with a READ that discriminates, never with a write.** The good test is to log
+   in as a user that exists only in `live`: if it fails, you are on `dev`. A verification
+   that can dirty production is not a verification.
+3. **An isolated test does not test the system.** The wrapper worked perfectly outside
+   Next; inside it never ran at all.
+4. The proxy **logs every call** with the data source it used, so where a request went is
+   visible rather than assumed.
 
 ---
 
-## 4. Sembrar datos en `dev`
+## 4. Seeding `dev`
 
-`dev` nace **vacío**, así que la app no tiene ni con qué loguear. La política acordada:
+`dev` starts empty, so the app has nothing to even log in with. The agreed policy:
 
-- ✅ **Copiar las tablas catálogo** desde `live` (`currency`, `country`, `asset_class`,
-  `transaction_type`): datos de referencia, sin PII, y sin ellos casi nada funciona.
-  Se preservan los `id` para no romper foreign keys.
-- ✅ **Crear a mano** 1 `asset_manager`, 1 `fund` y 1 `user` de prueba, **ficticios**.
-- ❌ **Nunca** copiar la cartera real: inversionistas, `cap_table_*`, `compliance_*`,
-  documentos.
+- ✅ **Copy the catalogue tables** from `live` (`currency`, `country`, `asset_class`,
+  `transaction_type`): reference data, no PII, and almost nothing works without them. The
+  `id`s are preserved so foreign keys still resolve.
+- ✅ **Create by hand** one `asset_manager`, one `fund` and one test `user`, all fictitious.
+- ❌ **Never** copy the real book: investors, `cap_table_*`, `compliance_*`, documents.
 
-Estado (2026-08-18): catálogos ✔ sembrados (currency 47, country 249, asset_class 22,
-transaction_type 14) y un usuario de prueba `demo@steplabs.xyz` creado vía el signup de
-la app apuntada al proxy. Las tablas de la cartera siguen en 0.
+State (2026-08-18): catalogues ✔ seeded (currency 47, country 249, asset_class 22,
+transaction_type 14) and a test user `demo@steplabs.xyz` created through the app's signup
+pointed at the proxy. The book tables are still at 0.
 
-El script `xano-seed-dev.mjs` (en `steplabs/preview-demo/`, junto al runbook local) hace
-la parte de catálogos. Escribe siempre con `X-Data-Source: dev` — la constante está
-fijada en el código — y es idempotente: si la tabla ya tiene filas en dev, la omite.
+`xano-seed-dev.mjs` (in `steplabs/preview-demo/`, beside the local runbook) does the
+catalogue half. It always writes with `X-Data-Source: dev` — the constant is fixed in the
+code — and it is idempotent: a table that already has rows in dev is skipped.
 
 ```bash
-node xano-seed-dev.mjs --dry-run   # muestra qué haría
-node xano-seed-dev.mjs             # siembra
+node xano-seed-dev.mjs --dry-run   # show what it would do
+node xano-seed-dev.mjs             # seed
 ```
 
-> Nota: el auto-mode de Claude Code bloquea los POST a APIs externas, así que este
-> script lo corre una persona (o se habilita una regla de permisos en `settings.json`).
+> Note: Claude Code's auto mode blocks POSTs to external APIs, so a person runs this script
+> (or a permission rule is added to `settings.json`).
 
 ---
 
-## 5. Levantar los dos proyectos en otra máquina
+## 5. Running both projects on another machine
 
-Recetas completas en `steplabs/preview-demo/README.md`. Resumen:
+Full recipes in `steplabs/preview-demo/README.md`. In short:
 
-| Proyecto | URL local | Datos |
+| Project | Local URL | Data |
 | --- | --- | --- |
-| **CRM** (este repo) | `:3200` app · `:3001` API · `:2000` agent | Postgres **local** (`crm`) |
-| **fundreporting-v2** | `:3000` | Xano (remoto) |
+| **CRM** (this repo) | `:3200` app · `:3001` API · `:2000` agent | **local** Postgres (`crm`) |
+| **fundreporting-v2** | `:3000` prod view · `:3300` dev | Xano (remote) |
 
-Puntos que muerden en una máquina nueva (verificados en WSL):
+What bites on a fresh machine (all verified on WSL):
 
-- **Bun** es el gestor del CRM (`packageManager: bun@1.3.12`). Si el instalador oficial
-  falla por falta de `unzip`: `npm i -g bun@1.3.12`.
-- **`turbo run dev` exige TTY** ("Cannot run interactive task without Terminal UI"), así
-  que los scripts levantan cada app por separado en vez de `turbo run dev`.
-- **DB del CRM**: no hace falta Docker. Sirve un Postgres local: crear la base `crm`,
-  `bunx prisma db push` y `bunx prisma db seed` dentro de `packages/db`.
-- El CRM app corre en **`:3200`** para no chocar con fundreporting-v2 en `:3000`. Como el
-  app proxya `/api/*` al API server-to-server, no hay problema de CORS; solo hay que
-  declarar `APP_URL` para los `trustedOrigins` de better-auth.
-- `fundreporting-v2` necesita su `.env.local` (no está en git): pedírselo a un compañero
-  o regenerarlo desde el gestor de secretos.
-
----
-
-## 6. Pendientes / decisiones abiertas
-
-1. **Branch `dev` de lógica.** Hoy solo existe `v1` (live). Mientras no exista, cualquier
-   cambio a endpoints/funciones de Xano toca producción. Hace falta apenas queramos
-   modificar el backend (no para desarrollar solo las apps).
-2. **Cablear `X-Data-Source`** en ambos repos (§3) + kill-switch read-only en
-   fundreporting-v2.
-3. **`PLATFORM_SERVICE_TOKEN` de escritura + UUIDs de asset manager** (§2).
-4. **Aislamiento de keys externas.** Si se necesita que dev no pueda tocar Resend/EODHD
-   reales, la salida es un **workspace dev separado** (misma instancia), no solo un data
-   source. Decisión pendiente.
-5. **Despliegue.** Esquema propuesto: Vercel Preview (PRs) → Xano `dev`; Production →
-   Xano `live`. En Xano, promover con merge/publish de branch.
+- **Bun** is the CRM's package manager (`packageManager: bun@1.3.12`). If the official
+  installer fails for want of `unzip`: `npm i -g bun@1.3.12`.
+- **`turbo run dev` requires a TTY** ("Cannot run interactive task without Terminal UI"),
+  so the scripts start each app separately instead of using `turbo run dev`.
+- **The CRM database** needs no Docker. A local Postgres does: create the `crm` database,
+  then `bunx prisma db push` and `bunx prisma db seed` inside `packages/db`.
+- The CRM app runs on **`:3200`** so it does not collide with fundreporting-v2 on `:3000`.
+  The browser only ever talks to the app, which proxies `/api/*` to the API
+  server-to-server, so there is no CORS problem — only `APP_URL` has to be declared for
+  better-auth's `trustedOrigins`.
+- `fundreporting-v2` needs its `.env.local`, which is not in git: get it from a teammate or
+  rebuild it from the secret store.
+- Running the prod view and the dev view **at the same time** needs two working copies —
+  Next allows one dev server per directory. `git worktree` is what that is for.
 
 ---
 
-## Referencias
+## 6. Open decisions
 
-- `data-model.md` — el modelo del CRM vs. FundReporting y por qué la costura es shape C.
-- `fundreporting-handoff.md` — el handoff campo por campo; qué está confirmado contra el
-  Xano real y qué falta.
-- `tenancy.md` — multi-tenancy del fork (`organization.assetManagerId`).
-- `steplabs/preview-demo/ANALISIS-XANO-CRM-FUNDREPORTING.md` (fuera de git) — el análisis
-  largo: superficie de escritura de fundreporting-v2, opciones de arquitectura y plan de
-  despliegue.
+1. **A `dev` logic branch.** Only `v1` exists, so any change to a Xano endpoint or function
+   still edits production. Needed as soon as we want to modify the backend, not for
+   developing the apps against it.
+2. **`PLATFORM_SERVICE_TOKEN` for production, plus the asset-manager UUIDs** (§2).
+3. **Isolating the external keys.** If dev must not be able to reach the real Resend or
+   EODHD, the answer is a separate dev *workspace* (same instance), not just a data source.
+4. **Deployment.** Proposed: Vercel Preview (PRs) → Xano `dev`; Production → Xano `live`.
+   In Xano, promote by merging/publishing a branch.
+
+---
+
+## References
+
+- `data-model.md` — the CRM's model against FundReporting's, and why the seam is shape C.
+- `fundreporting-handoff.md` — the handoff field by field; what is confirmed against the
+  real Xano and what is missing.
+- `tenancy.md` — the fork's multi-tenancy (`organization.assetManagerId`).
+- `steplabs/preview-demo/ANALYSIS-XANO-CRM-FUNDREPORTING.md` (outside git) — the long
+  analysis: fundreporting-v2's write surface, the architecture options and the deployment
+  plan.
