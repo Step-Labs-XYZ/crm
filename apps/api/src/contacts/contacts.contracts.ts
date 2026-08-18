@@ -1,3 +1,4 @@
+import { InvestorClassification } from "@crm/db";
 import { z } from "zod";
 import { listInput } from "../trpc/list-input";
 
@@ -5,6 +6,7 @@ export const contactListInput = listInput.extend({
 	owner: z.string().default("all"),
 	company: z.string().default("all"),
 	source: z.string().default("all"),
+	classification: z.string().default("all"),
 });
 
 export type ContactListInput = z.infer<typeof contactListInput>;
@@ -15,6 +17,11 @@ export const contactCreateInput = z.object({
 	email: z.email("That is not an email address.").optional().or(z.literal("")),
 	phone: z.string().trim().optional(),
 	title: z.string().trim().optional(),
+	investorClassification: z.enum(InvestorClassification).nullable().optional(),
+	referrerEmail: z
+		.email("That is not an email address.")
+		.optional()
+		.or(z.literal("")),
 	companyId: z.string().nullable().optional(),
 	ownerId: z.string().nullable().optional(),
 });
@@ -30,6 +37,8 @@ const contactUpdateInput = z.object({
 	linkedinUrl: z.string().optional(),
 	twitterUrl: z.string().optional(),
 	githubUrl: z.string().optional(),
+	investorClassification: z.enum(InvestorClassification).nullable().optional(),
+	referrerEmail: z.string().optional(),
 	companyId: z.string().nullable().optional(),
 	ownerId: z.string().nullable().optional(),
 });

@@ -4,6 +4,7 @@ import {
 	type DbTransaction,
 	type FactEvidence,
 	FactStatus,
+	type InvestorClassification,
 	type Prisma,
 	Prisma as PrismaNamespace,
 	type RecordSource,
@@ -58,6 +59,7 @@ const COMPANY_SELECT = {
 } as const;
 
 const NO_COMPANY = "none";
+const NO_CLASSIFICATION = "none";
 
 const FACT_COLUMNS: Record<string, string | undefined> = {
 	title: "title",
@@ -73,6 +75,7 @@ export type ContactRow = {
 	email: string | null;
 	title: string | null;
 	imageUrl: string | null;
+	investorClassification: InvestorClassification | null;
 	company: {
 		id: string;
 		name: string;
@@ -100,6 +103,10 @@ const SORTABLE: Record<
 	email: (dir) => [{ email: dir }],
 	title: (dir) => [{ title: dir }, { lastName: "asc" }],
 	company: (dir) => [{ company: { name: dir } }, { lastName: "asc" }],
+	classification: (dir) => [
+		{ investorClassification: { sort: dir, nulls: "last" } },
+		{ lastName: "asc" },
+	],
 	createdAt: (dir) => [{ createdAt: dir }],
 	owner: (dir) => [{ owner: { name: dir } }, { lastName: "asc" }],
 	lastActivity: (dir) => [{ lastActivityAt: { sort: dir, nulls: "last" } }],
@@ -135,6 +142,7 @@ export class ContactsService {
 					title: true,
 					imageUrl: true,
 					source: true,
+					investorClassification: true,
 					company: { select: COMPANY_SELECT },
 					owner: { select: OWNER_SELECT },
 					lastActivityAt: true,
@@ -170,6 +178,8 @@ export class ContactsService {
 				twitterUrl: true,
 				githubUrl: true,
 				imageUrl: true,
+				investorClassification: true,
+				referrerEmail: true,
 				enrichmentStatus: true,
 				enrichmentError: true,
 				createdAt: true,
@@ -295,6 +305,8 @@ export class ContactsService {
 					email,
 					phone: blankToNull(input.phone ?? ""),
 					title: blankToNull(input.title ?? ""),
+					investorClassification: input.investorClassification ?? null,
+					referrerEmail: normalizeEmail(input.referrerEmail ?? "") || null,
 					companyId,
 					ownerId: input.ownerId ?? null,
 				},
@@ -387,6 +399,12 @@ export class ContactsService {
 		}
 		if (input.githubUrl !== undefined) {
 			data.githubUrl = blankToNull(input.githubUrl);
+		}
+		if (input.investorClassification !== undefined) {
+			data.investorClassification = input.investorClassification;
+		}
+		if (input.referrerEmail !== undefined) {
+			data.referrerEmail = normalizeEmail(input.referrerEmail) || null;
 		}
 		if (input.companyId !== undefined) {
 			data.company = input.companyId
@@ -624,13 +642,20 @@ export class ContactsService {
 			where.source = input.source as RecordSource;
 		}
 
+		if (input.classification !== FACET_ALL) {
+			where.investorClassification =
+				input.classification === NO_CLASSIFICATION
+					? null
+					: (input.classification as InvestorClassification);
+		}
+
 		return where;
 	}
 
 	private async facetCounts(input: ContactListInput) {
 		const where = this.searchFilter(input.q);
 
-		const [owners, companies, sources] = await Promise.all([
+		const [owners, companies, sources, classifications] = await Promise.all([
 			this.db.contact.groupBy({
 				by: ["ownerId"],
 				where,
@@ -646,12 +671,22 @@ export class ContactsService {
 				where,
 				_count: { _all: true },
 			}),
+			this.db.contact.groupBy({
+				by: ["investorClassification"],
+				where,
+				_count: { _all: true },
+			}),
 		]);
 
 		return {
 			owner: countsByKey(owners, "ownerId", FACET_UNASSIGNED),
 			company: countsByKey(companies, "companyId", NO_COMPANY),
 			source: countsByKey(sources, "source"),
+			classification: countsByKey(
+				classifications,
+				"investorClassification",
+				NO_CLASSIFICATION,
+			),
 		};
 	}
 

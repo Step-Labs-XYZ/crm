@@ -56,6 +56,8 @@ export type CompanyRow = {
 	logoUrl: string | null;
 	brandColor: string | null;
 	industry: string | null;
+	registrationNumber: string | null;
+	currency: string | null;
 	enrichmentStatus: EnrichmentStatus;
 	queued: boolean;
 	source: RecordSource;
@@ -119,6 +121,8 @@ export class CompaniesService {
 					logoUrl: true,
 					brandColor: true,
 					industry: true,
+					registrationNumber: true,
+					currency: true,
 					enrichmentStatus: true,
 					source: true,
 					owner: { select: OWNER_SELECT },
@@ -149,6 +153,8 @@ export class CompaniesService {
 				logoUrl: row.logoUrl,
 				brandColor: row.brandColor,
 				industry: row.industry,
+				registrationNumber: row.registrationNumber,
+				currency: row.currency,
 				enrichmentStatus: row.enrichmentStatus,
 				queued: queued.has(row.id),
 				source: row.source,
@@ -180,6 +186,8 @@ export class CompaniesService {
 				brandColor: true,
 				industry: true,
 				subIndustry: true,
+				registrationNumber: true,
+				currency: true,
 				city: true,
 				stateCode: true,
 				country: true,
@@ -287,6 +295,8 @@ export class CompaniesService {
 				organizationId: tenantId(),
 				name: input.name.trim(),
 				domain,
+				registrationNumber: blankToNull(input.registrationNumber ?? ""),
+				currency: blankToNull(input.currency ?? "")?.toUpperCase() ?? null,
 				website: domain ? `https://${domain}` : null,
 				ownerId: input.ownerId ?? null,
 			},
@@ -316,6 +326,12 @@ export class CompaniesService {
 		}
 		if (input.industry !== undefined)
 			data.industry = blankToNull(input.industry);
+		if (input.registrationNumber !== undefined) {
+			data.registrationNumber = blankToNull(input.registrationNumber);
+		}
+		if (input.currency !== undefined) {
+			data.currency = blankToNull(input.currency)?.toUpperCase() ?? null;
+		}
 		if (input.city !== undefined) data.city = blankToNull(input.city);
 		if (input.stateCode !== undefined) {
 			data.stateCode = blankToNull(input.stateCode);
