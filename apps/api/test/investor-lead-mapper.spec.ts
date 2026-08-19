@@ -3,6 +3,7 @@ import {
 	LANDING_STATUS,
 	type LeadSource,
 	matchExisting,
+	mergeInterests,
 	toCreate,
 	toUpdate,
 } from "../src/fundreporting/investor-lead.mapper";
@@ -19,6 +20,12 @@ const source: LeadSource = {
 		lastName: "Marchetti",
 		email: "paula@fernhill.com",
 		phone: "+1 415 555 0142",
+	},
+	classification: "professional",
+	interest: {
+		fund: "fund_iii",
+		share_class: "class_a",
+		committed_amount: 4000000,
 	},
 };
 
@@ -39,13 +46,11 @@ describe("what the CRM writes onto an investor lead", () => {
 		expect(LANDING_STATUS).not.toBe("qualified");
 	});
 
-	it("never writes a fund interest, a committed amount or a classification", () => {
+	it("never writes conversion state or a loose committed amount", () => {
 		const write = toCreate(source) as Record<string, unknown>;
 
 		for (const forbidden of [
-			"interests",
 			"committed_amount",
-			"investor_classification",
 			"converted_to_shareholder",
 			"converted_at",
 		]) {
@@ -58,9 +63,7 @@ describe("what the CRM writes onto an investor lead", () => {
 
 		expect(write.notes).toContain("4000000 USD");
 		expect(write.notes).toContain("Fernhill — Fund III");
-		expect(write.notes).toContain(
-			"Fund interests, committed amounts and classification are not set by the CRM",
-		);
+		expect(write.notes).not.toContain("No fund interest");
 	});
 
 	it("does not move a lead's status once their team has it", () => {
@@ -113,5 +116,57 @@ describe("finding a lead that is already there", () => {
 
 	it("does not guess when the address is not there", () => {
 		expect(matchExisting(leads, "stranger@fernhill.com")).toBeNull();
+	});
+});
+
+describe("fund interests", () => {
+	it("sends the deal's interest and the contact's classification", () => {
+		const write = toCreate(source);
+
+		expect(write.investor_classification).toBe("professional");
+		expect(write.interests).toEqual([
+			{ fund: "fund_iii", share_class: "class_a", committed_amount: 4000000 },
+		]);
+	});
+
+	it("says so in the note when the deal names no fund", () => {
+		const write = toCreate({ ...source, interest: null });
+
+		expect(write.interests).toBeUndefined();
+		expect(write.notes).toContain("No fund interest");
+	});
+
+	it("adds a second fund rather than replacing the first", () => {
+		const held = {
+			fund: "fund_ii",
+			share_class: null,
+			committed_amount: 1000000,
+		};
+
+		const merged = mergeInterests([held], source.interest);
+
+		expect(merged).toEqual([held, source.interest!]);
+	});
+
+	it("replaces the amount when the same fund and class come back", () => {
+		const stale = { ...source.interest!, committed_amount: 1 };
+
+		const merged = mergeInterests([stale], source.interest);
+
+		expect(merged).toEqual([source.interest!]);
+	});
+
+	it("leaves what the platform holds alone when the deal names no fund", () => {
+		const held = { fund: "fund_ii", share_class: null, committed_amount: 5 };
+
+		expect(mergeInterests([held], null)).toBeNull();
+	});
+
+	it("carries the merged list through an update", () => {
+		const held = { fund: "fund_ii", share_class: null, committed_amount: 5 };
+
+		const write = toUpdate(source, { id: "lead_1", interests: [held] });
+
+		expect(write.interests).toEqual([held, source.interest!]);
 	});
 });

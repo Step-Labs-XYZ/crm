@@ -152,6 +152,9 @@ export class DealsService {
 				amount: true,
 				currency: true,
 				expectedCloseDate: true,
+				fundId: true,
+				shareClassId: true,
+				committedAmount: true,
 				closedAt: true,
 				closedReason: true,
 				createdAt: true,
@@ -179,11 +182,12 @@ export class DealsService {
 			throw new NotFoundException(`No deal with id ${id}.`);
 		}
 
-		const { contacts, amount, ...rest } = deal;
+		const { contacts, amount, committedAmount, ...rest } = deal;
 
 		return {
 			...rest,
 			amountCents: toCents(amount),
+			committedAmountCents: toCents(committedAmount),
 			stageChangedAt: deal.stageChangedAt.toISOString(),
 			expectedCloseDate: deal.expectedCloseDate?.toISOString() ?? null,
 			closedAt: deal.closedAt?.toISOString() ?? null,
@@ -210,6 +214,9 @@ export class DealsService {
 					amount: fromCents(input.amountCents),
 					currency: input.currency ?? "USD",
 					expectedCloseDate: parseDate(input.expectedCloseDate),
+					fundId: input.fundId ?? null,
+					shareClassId: input.shareClassId ?? null,
+					committedAmount: fromCents(input.committedAmountCents),
 				},
 				select: { id: true, name: true, companyId: true },
 			});
@@ -238,6 +245,12 @@ export class DealsService {
 		if (input.currency !== undefined) data.currency = input.currency;
 		if (input.expectedCloseDate !== undefined) {
 			data.expectedCloseDate = parseDate(input.expectedCloseDate);
+		}
+		if (input.fundId !== undefined) data.fundId = input.fundId;
+		if (input.shareClassId !== undefined)
+			data.shareClassId = input.shareClassId;
+		if (input.committedAmountCents !== undefined) {
+			data.committedAmount = fromCents(input.committedAmountCents);
 		}
 
 		try {

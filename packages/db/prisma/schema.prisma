@@ -442,6 +442,10 @@ model Deal {
   closedAt          DateTime?
   closedReason      String?
 
+  fundId          String?
+  shareClassId    String?
+  committedAmount Decimal? @db.Decimal(18, 2)
+
   lastActivityAt DateTime?
 
   contacts   DealContact[]

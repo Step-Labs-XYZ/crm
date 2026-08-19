@@ -97,25 +97,27 @@ export class LeadHandoffService {
 			select: { leadId: true },
 		});
 
-		let leadId = filed?.leadId ?? null;
+		const listed = await this.platform.listLeads(source.assetManagerId);
 
-		if (!leadId) {
-			const listed = await this.platform.listLeads(source.assetManagerId);
-
-			if (!listed.ok) {
-				return this.settle(
-					dealId,
-					listed.retryable ? HandoffState.FAILED : HandoffState.REFUSED,
-					listed.reason,
-					null,
-				);
-			}
-
-			leadId = idOf(matchExisting(listed.data, source.person?.email ?? null));
+		if (!listed.ok) {
+			return this.settle(
+				dealId,
+				listed.retryable ? HandoffState.FAILED : HandoffState.REFUSED,
+				listed.reason,
+				null,
+			);
 		}
 
+		const stored = filed?.leadId ?? null;
+		const existing =
+			(stored
+				? (listed.data.find((lead) => idOf(lead) === stored) ?? null)
+				: null) ?? matchExisting(listed.data, source.person?.email ?? null);
+
+		const leadId = idOf(existing) ?? stored;
+
 		const written = leadId
-			? await this.platform.updateLead(leadId, toUpdate(source))
+			? await this.platform.updateLead(leadId, toUpdate(source, existing))
 			: await this.platform.createLead(toCreate(source));
 
 		if (!written.ok) {
@@ -195,6 +197,9 @@ export class LeadHandoffService {
 				closedAt: true,
 				stage: true,
 				organizationId: true,
+				fundId: true,
+				shareClassId: true,
+				committedAmount: true,
 				company: {
 					select: {
 						name: true,
@@ -204,6 +209,7 @@ export class LeadHandoffService {
 								lastName: true,
 								email: true,
 								phone: true,
+								investorClassification: true,
 							},
 						},
 					},
@@ -218,6 +224,7 @@ export class LeadHandoffService {
 								lastName: true,
 								email: true,
 								phone: true,
+								investorClassification: true,
 							},
 						},
 					},
@@ -234,6 +241,9 @@ export class LeadHandoffService {
 
 		if (!workspace?.assetManagerId) return null;
 
+		const person =
+			deal.contacts[0]?.contact ?? deal.company?.primaryContact ?? null;
+
 		return {
 			assetManagerId: workspace.assetManagerId,
 			dealName: deal.name,
@@ -241,7 +251,19 @@ export class LeadHandoffService {
 			currency: deal.currency,
 			closedAt: deal.closedAt,
 			companyName: deal.company?.name ?? null,
-			person: deal.contacts[0]?.contact ?? deal.company?.primaryContact ?? null,
+			person,
+			classification: person?.investorClassification
+				? person.investorClassification.toLowerCase()
+				: null,
+			interest: deal.fundId
+				? {
+						fund: deal.fundId,
+						share_class: deal.shareClassId,
+						committed_amount: deal.committedAmount
+							? Number(deal.committedAmount)
+							: 0,
+					}
+				: null,
 		};
 	}
 }
