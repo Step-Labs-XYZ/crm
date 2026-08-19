@@ -172,12 +172,21 @@ export function DealSheet({ dealId }: { dealId: string }) {
 	);
 }
 
+const NONE = "none";
+
 function DealOverview({ deal }: { deal: Deal }) {
 	const trpc = useTRPC();
 	const cache = useCrmCache();
 
 	const users = useQuery(trpc.users.list.queryOptions());
 	const companies = useQuery(trpc.companies.options.queryOptions({ q: "" }));
+	const funds = useQuery(trpc.fundreporting.funds.queryOptions());
+	const shareClasses = useQuery({
+		...trpc.fundreporting.shareClasses.queryOptions({
+			fundId: deal.fundId ?? "",
+		}),
+		enabled: Boolean(deal.fundId),
+	});
 
 	const update = useMutation(
 		trpc.deals.update.mutationOptions({
@@ -235,6 +244,59 @@ function DealOverview({ deal }: { deal: Deal }) {
 								return;
 							}
 							save({ amountCents: Math.round(parsed * 100) });
+						}}
+						render={(value) =>
+							formatMoney(Math.round(Number(value) * 100), deal.currency)
+						}
+					/>
+					<InlineSelectField
+						label="Fund"
+						value={deal.fundId ?? NONE}
+						options={[
+							{ value: NONE, label: "No fund" },
+							...(funds.data ?? []).map((fund) => ({
+								value: fund.id,
+								label: fund.name,
+							})),
+						]}
+						onSave={(value) =>
+							save({
+								fundId: value === NONE ? null : value,
+								shareClassId: null,
+							})
+						}
+					/>
+					<InlineSelectField
+						label="Share class"
+						value={deal.shareClassId ?? NONE}
+						options={[
+							{ value: NONE, label: "Not set" },
+							...(shareClasses.data ?? []).map((cls) => ({
+								value: cls.id,
+								label: cls.name,
+							})),
+						]}
+						onSave={(value) =>
+							save({ shareClassId: value === NONE ? null : value })
+						}
+					/>
+					<InlineField
+						label="Committed"
+						value={
+							deal.committedAmountCents === null
+								? null
+								: String(deal.committedAmountCents / 100)
+						}
+						placeholder="2500000"
+						saving={isSaving("committedAmountCents")}
+						onSave={(next) => {
+							if (next === "") return save({ committedAmountCents: null });
+							const parsed = Number.parseFloat(next);
+							if (!Number.isFinite(parsed) || parsed < 0) {
+								toast.error("The committed amount has to be a number.");
+								return;
+							}
+							save({ committedAmountCents: Math.round(parsed * 100) });
 						}}
 						render={(value) =>
 							formatMoney(Math.round(Number(value) * 100), deal.currency)

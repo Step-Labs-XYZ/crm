@@ -72,14 +72,23 @@ function CreateDealForm({ companyId }: { companyId?: string }) {
 	const [stage, setStage] = useState<string>("DEMO_BOOKED");
 	const [amount, setAmount] = useState("");
 	const [closeDate, setCloseDate] = useState("");
+	const [fundId, setFundId] = useState(UNSET);
+	const [shareClassId, setShareClassId] = useState(UNSET);
+	const [committed, setCommitted] = useState("");
 
 	const nameId = useId();
 	const amountId = useId();
 	const closeDateId = useId();
+	const committedId = useId();
 
 	const users = useQuery(trpc.users.list.queryOptions());
 	const companies = useQuery(trpc.companies.options.queryOptions({ q: "" }));
 	const me = useQuery(trpc.users.me.queryOptions());
+	const funds = useQuery(trpc.fundreporting.funds.queryOptions());
+	const shareClasses = useQuery({
+		...trpc.fundreporting.shareClasses.queryOptions({ fundId }),
+		enabled: fundId !== UNSET,
+	});
 
 	const resolvedOwner = ownerId || me.data?.id || UNSET;
 
@@ -120,6 +129,7 @@ function CreateDealForm({ companyId }: { companyId?: string }) {
 					onSubmit={(event) => {
 						event.preventDefault();
 						const parsed = Number.parseFloat(amount);
+						const committedParsed = Number.parseFloat(committed);
 						create.mutate({
 							name,
 							companyId: company,
@@ -129,6 +139,11 @@ function CreateDealForm({ companyId }: { companyId?: string }) {
 								? Math.round(parsed * 100)
 								: null,
 							expectedCloseDate: closeDate || null,
+							fundId: fundId === UNSET ? null : fundId,
+							shareClassId: shareClassId === UNSET ? null : shareClassId,
+							committedAmountCents: Number.isFinite(committedParsed)
+								? Math.round(committedParsed * 100)
+								: null,
 						});
 					}}
 				>
@@ -204,6 +219,66 @@ function CreateDealForm({ companyId }: { companyId?: string }) {
 								value={amount}
 								onChange={(event) => setAmount(event.target.value)}
 								placeholder="24000"
+								inputMode="decimal"
+								autoComplete="off"
+							/>
+						</Field>
+
+						<Field>
+							<FieldLabel htmlFor="create-deal-fund">Fund</FieldLabel>
+							<Select
+								value={fundId}
+								onValueChange={(value) => {
+									setFundId(value);
+									setShareClassId(UNSET);
+								}}
+							>
+								<SelectTrigger id="create-deal-fund">
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value={UNSET}>No fund</SelectItem>
+									{(funds.data ?? []).map((fund) => (
+										<SelectItem key={fund.id} value={fund.id}>
+											{fund.name}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</Field>
+
+						<Field>
+							<FieldLabel htmlFor="create-deal-share-class">
+								Share class
+							</FieldLabel>
+							<Select
+								value={shareClassId}
+								onValueChange={setShareClassId}
+								disabled={fundId === UNSET}
+							>
+								<SelectTrigger id="create-deal-share-class">
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value={UNSET}>Not set</SelectItem>
+									{(shareClasses.data ?? []).map((cls) => (
+										<SelectItem key={cls.id} value={cls.id}>
+											{cls.name}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</Field>
+
+						<Field>
+							<FieldLabel htmlFor={committedId}>
+								Committed amount (USD)
+							</FieldLabel>
+							<Input
+								id={committedId}
+								value={committed}
+								onChange={(event) => setCommitted(event.target.value)}
+								placeholder="2500000"
 								inputMode="decimal"
 								autoComplete="off"
 							/>
