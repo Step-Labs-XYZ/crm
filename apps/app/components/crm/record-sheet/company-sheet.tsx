@@ -397,6 +397,20 @@ function CompanyOverview({
 								onSave={(website) => save({ website })}
 							/>
 							<InlineField
+								label="Registration no."
+								value={company.registrationNumber}
+								placeholder="IE 552 118 09"
+								saving={isSaving("registrationNumber")}
+								onSave={(registrationNumber) => save({ registrationNumber })}
+							/>
+							<InlineField
+								label="Currency"
+								value={company.currency}
+								placeholder="EUR"
+								saving={isSaving("currency")}
+								onSave={(currency) => save({ currency })}
+							/>
+							<InlineField
 								label="Phone"
 								value={company.phone}
 								type="tel"

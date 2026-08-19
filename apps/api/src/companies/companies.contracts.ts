@@ -32,7 +32,12 @@ const companyUpdateInput = z.object({
 	description: z.string().optional(),
 	industry: z.string().optional(),
 	registrationNumber: z.string().optional(),
-	currency: z.string().optional(),
+	currency: z
+		.string()
+		.trim()
+		.length(3, "Use a three-letter code.")
+		.optional()
+		.or(z.literal("")),
 	city: z.string().optional(),
 	stateCode: z.string().optional(),
 	country: z.string().optional(),
