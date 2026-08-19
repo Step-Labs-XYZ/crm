@@ -15,6 +15,15 @@ export type PlatformShareClass = {
 export type PlatformAssetManager = {
 	id: string;
 	name: string | null;
+	entity?: string | null;
+};
+
+export type PlatformShareholder = {
+	id: string;
+	name: string | null;
+	email: string | null;
+	role: string | null;
+	type: string | null;
 };
 
 export const PLATFORM_API = Symbol("PLATFORM_API");
@@ -41,6 +50,9 @@ export interface PlatformApi {
 	getAssetManager(
 		assetManagerId: string,
 	): Promise<PlatformOutcome<PlatformAssetManager>>;
+	listShareholders(
+		entityId: string,
+	): Promise<PlatformOutcome<PlatformShareholder[]>>;
 }
 
 const TIMEOUT_MS = 15_000;
@@ -95,6 +107,17 @@ export class PlatformClient implements PlatformApi {
 			"GET",
 			`asset_manager/${encodeURIComponent(assetManagerId)}`,
 		);
+	}
+
+	async listShareholders(
+		entityId: string,
+	): Promise<PlatformOutcome<PlatformShareholder[]>> {
+		const query = `cap_table_shareholder?entity=${encodeURIComponent(entityId)}`;
+		const result = await this.call<PlatformShareholder[] | null>("GET", query);
+
+		if (!result.ok) return result;
+
+		return { ok: true, data: Array.isArray(result.data) ? result.data : [] };
 	}
 
 	async createLead(

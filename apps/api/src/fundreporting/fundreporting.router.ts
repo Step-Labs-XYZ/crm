@@ -28,6 +28,11 @@ export class FundreportingRouter {
 	}
 
 	@Query()
+	async investors() {
+		return this.catalog.investors();
+	}
+
+	@Query()
 	async funds() {
 		return this.catalog.funds();
 	}

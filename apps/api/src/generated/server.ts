@@ -152,6 +152,8 @@ const appRouter = t.router({
       .query(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<FundreportingRouter["outstanding"]>>),
     assetManager: publicProcedure
       .query(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<FundreportingRouter["assetManager"]>>),
+    investors: publicProcedure
+      .query(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<FundreportingRouter["investors"]>>),
     funds: publicProcedure
       .query(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<FundreportingRouter["funds"]>>),
     shareClasses: publicProcedure

@@ -41,6 +41,7 @@ function fakePlatform(options: {
 		configured: () => options.configured ?? true,
 		listFunds: async () => ({ ok: true, data: [] }),
 		listShareClasses: async () => ({ ok: true, data: [] }),
+		listShareholders: async () => ({ ok: true as const, data: [] }),
 		getAssetManager: async () => ({
 			ok: true as const,
 			data: { id: "am_42", name: "Fernhill Capital" },
