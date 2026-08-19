@@ -39,6 +39,8 @@ function fakePlatform(options: {
 
 	const api: PlatformApi = {
 		configured: () => options.configured ?? true,
+		listFunds: async () => ({ ok: true, data: [] }),
+		listShareClasses: async () => ({ ok: true, data: [] }),
 		listLeads: async () => {
 			calls.push({ kind: "list" });
 			return options.listOutcome ?? { ok: true, data: options.existing ?? [] };

@@ -1,6 +1,17 @@
 import { Injectable, Logger } from "@nestjs/common";
 import type { ExistingLead, InvestorLeadWrite } from "./investor-lead.mapper";
 
+export type PlatformFund = {
+	id: string;
+	name: string | null;
+	entity: string | null;
+};
+
+export type PlatformShareClass = {
+	id: string;
+	name: string | null;
+};
+
 export const PLATFORM_API = Symbol("PLATFORM_API");
 
 export type PlatformOutcome<T> =
@@ -18,6 +29,10 @@ export interface PlatformApi {
 		leadId: string,
 		body: Omit<InvestorLeadWrite, "status">,
 	): Promise<PlatformOutcome<ExistingLead>>;
+	listFunds(assetManagerId: string): Promise<PlatformOutcome<PlatformFund[]>>;
+	listShareClasses(
+		fundEntityId: string,
+	): Promise<PlatformOutcome<PlatformShareClass[]>>;
 }
 
 const TIMEOUT_MS = 15_000;
@@ -37,6 +52,28 @@ export class PlatformClient implements PlatformApi {
 	): Promise<PlatformOutcome<ExistingLead[]>> {
 		const query = `investor_lead?asset_manager=${encodeURIComponent(assetManagerId)}`;
 		const result = await this.call<ExistingLead[] | null>("GET", query);
+
+		if (!result.ok) return result;
+
+		return { ok: true, data: Array.isArray(result.data) ? result.data : [] };
+	}
+
+	async listFunds(
+		assetManagerId: string,
+	): Promise<PlatformOutcome<PlatformFund[]>> {
+		const query = `fund?managed_by=${encodeURIComponent(assetManagerId)}`;
+		const result = await this.call<PlatformFund[] | null>("GET", query);
+
+		if (!result.ok) return result;
+
+		return { ok: true, data: Array.isArray(result.data) ? result.data : [] };
+	}
+
+	async listShareClasses(
+		fundEntityId: string,
+	): Promise<PlatformOutcome<PlatformShareClass[]>> {
+		const query = `share_class?entity=${encodeURIComponent(fundEntityId)}`;
+		const result = await this.call<PlatformShareClass[] | null>("GET", query);
 
 		if (!result.ok) return result;
 
