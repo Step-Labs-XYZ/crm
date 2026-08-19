@@ -68,6 +68,7 @@ export class PlatformClient implements PlatformApi {
 		const base = process.env.PLATFORM_API_URL;
 		const token = process.env.PLATFORM_SERVICE_TOKEN;
 		const dataSource = process.env.PLATFORM_DATA_SOURCE;
+		const branch = process.env.PLATFORM_BRANCH;
 
 		if (!base || !token) {
 			return { ok: false, retryable: false, reason: NOT_CONFIGURED };
@@ -81,6 +82,7 @@ export class PlatformClient implements PlatformApi {
 				headers: {
 					authorization: `Bearer ${token}`,
 					...(dataSource ? { "x-data-source": dataSource } : {}),
+					...(branch ? { "x-branch": branch } : {}),
 					...(body ? { "content-type": "application/json" } : {}),
 				},
 				...(body ? { body: JSON.stringify(body) } : {}),
