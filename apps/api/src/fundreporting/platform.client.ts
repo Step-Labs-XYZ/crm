@@ -12,6 +12,11 @@ export type PlatformShareClass = {
 	name: string | null;
 };
 
+export type PlatformAssetManager = {
+	id: string;
+	name: string | null;
+};
+
 export const PLATFORM_API = Symbol("PLATFORM_API");
 
 export type PlatformOutcome<T> =
@@ -33,6 +38,9 @@ export interface PlatformApi {
 	listShareClasses(
 		fundEntityId: string,
 	): Promise<PlatformOutcome<PlatformShareClass[]>>;
+	getAssetManager(
+		assetManagerId: string,
+	): Promise<PlatformOutcome<PlatformAssetManager>>;
 }
 
 const TIMEOUT_MS = 15_000;
@@ -78,6 +86,15 @@ export class PlatformClient implements PlatformApi {
 		if (!result.ok) return result;
 
 		return { ok: true, data: Array.isArray(result.data) ? result.data : [] };
+	}
+
+	async getAssetManager(
+		assetManagerId: string,
+	): Promise<PlatformOutcome<PlatformAssetManager>> {
+		return this.call<PlatformAssetManager>(
+			"GET",
+			`asset_manager/${encodeURIComponent(assetManagerId)}`,
+		);
 	}
 
 	async createLead(

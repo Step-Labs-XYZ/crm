@@ -11,6 +11,12 @@ export type MemberListInput = z.infer<typeof memberListInput>;
 export const updateWorkspaceInput = z.object({
 	name: z.string().trim().min(1).max(120),
 	website: z.string().trim().min(1).max(255),
+	assetManagerId: z
+		.string()
+		.trim()
+		.uuid("FundReporting identifies an asset manager by a UUID.")
+		.or(z.literal(""))
+		.optional(),
 });
 
 export const setMemberRoleInput = z.object({

@@ -14,6 +14,12 @@ export type ShareClassOption = {
 	name: string;
 };
 
+export type AssetManagerCheck =
+	| { state: "unset" }
+	| { state: "unreachable" }
+	| { state: "unknown" }
+	| { state: "found"; name: string };
+
 @Injectable()
 export class FundCatalogService {
 	private readonly logger = new Logger(FundCatalogService.name);
@@ -22,6 +28,20 @@ export class FundCatalogService {
 		@InjectDatabase() private readonly db: Db,
 		@Inject(PLATFORM_API) private readonly platform: PlatformApi,
 	) {}
+
+	async assetManager(): Promise<AssetManagerCheck> {
+		const assetManagerId = await this.assetManagerId();
+		if (!assetManagerId) return { state: "unset" };
+		if (!this.platform.configured()) return { state: "unreachable" };
+
+		const result = await this.platform.getAssetManager(assetManagerId);
+
+		if (!result.ok) {
+			return { state: result.retryable ? "unreachable" : "unknown" };
+		}
+
+		return { state: "found", name: result.data.name ?? assetManagerId };
+	}
 
 	async funds(): Promise<FundOption[]> {
 		const assetManagerId = await this.assetManagerId();

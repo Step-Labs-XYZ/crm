@@ -40,12 +40,15 @@ export function WorkspaceForm() {
 
 	const nameId = useId();
 	const websiteId = useId();
+	const assetManagerId = useId();
 
 	const workspace = useQuery(trpc.workspace.get.queryOptions());
 
-	const [draft, setDraft] = useState<{ name: string; website: string } | null>(
-		null,
-	);
+	const [draft, setDraft] = useState<{
+		name: string;
+		website: string;
+		assetManagerId: string;
+	} | null>(null);
 
 	const save = useMutation(
 		trpc.workspace.update.mutationOptions({
@@ -65,9 +68,17 @@ export function WorkspaceForm() {
 	if (!workspace.data) return null;
 
 	const { name, website, canRename } = workspace.data;
+	const assetManager = workspace.data.assetManagerId ?? "";
 
-	const values = draft ?? { name, website: website ?? "" };
-	const dirty = values.name !== name || values.website !== (website ?? "");
+	const values = draft ?? {
+		name,
+		website: website ?? "",
+		assetManagerId: assetManager,
+	};
+	const dirty =
+		values.name !== name ||
+		values.website !== (website ?? "") ||
+		values.assetManagerId !== assetManager;
 
 	const edit = (patch: Partial<typeof values>) =>
 		setDraft({ ...values, ...patch });
@@ -106,6 +117,7 @@ export function WorkspaceForm() {
 						save.mutate({
 							name: values.name,
 							website: values.website.trim(),
+							assetManagerId: values.assetManagerId.trim(),
 						});
 					}}
 				>
@@ -147,6 +159,28 @@ export function WorkspaceForm() {
 							</InputGroup>
 							<FieldDescription>Your own company's website.</FieldDescription>
 						</Field>
+
+						<Field>
+							<FieldLabel htmlFor={assetManagerId}>
+								FundReporting asset manager
+							</FieldLabel>
+							<Input
+								id={assetManagerId}
+								value={values.assetManagerId}
+								onChange={(event) =>
+									edit({ assetManagerId: event.target.value })
+								}
+								placeholder="00000000-0000-0000-0000-000000000000"
+								autoComplete="off"
+								autoCapitalize="off"
+								autoCorrect="off"
+								spellCheck={false}
+								disabled={!canRename || save.isPending}
+							/>
+							<FieldDescription>
+								<AssetManagerCheck saved={assetManager !== ""} />
+							</FieldDescription>
+						</Field>
 					</FieldGroup>
 				</form>
 
@@ -158,4 +192,32 @@ export function WorkspaceForm() {
 			</CardContent>
 		</Card>
 	);
+}
+
+function AssetManagerCheck({ saved }: { saved: boolean }) {
+	const trpc = useTRPC();
+	const check = useQuery({
+		...trpc.fundreporting.assetManager.queryOptions(),
+		enabled: saved,
+	});
+
+	if (!saved) {
+		return (
+			<>
+				Which asset manager this workspace is, on FundReporting's side. A won
+				deal is filed against it; without one, nothing is filed.
+			</>
+		);
+	}
+
+	if (check.isPending) return <>Checking with FundReporting…</>;
+
+	switch (check.data?.state) {
+		case "found":
+			return <>FundReporting knows this one as {check.data.name}.</>;
+		case "unknown":
+			return <>FundReporting does not recognise that id.</>;
+		default:
+			return <>Saved. FundReporting could not be reached to confirm it.</>;
+	}
 }

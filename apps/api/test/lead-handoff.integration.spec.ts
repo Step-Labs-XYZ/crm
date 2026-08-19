@@ -41,6 +41,10 @@ function fakePlatform(options: {
 		configured: () => options.configured ?? true,
 		listFunds: async () => ({ ok: true, data: [] }),
 		listShareClasses: async () => ({ ok: true, data: [] }),
+		getAssetManager: async () => ({
+			ok: true as const,
+			data: { id: "am_42", name: "Fernhill Capital" },
+		}),
 		listLeads: async () => {
 			calls.push({ kind: "list" });
 			return options.listOutcome ?? { ok: true, data: options.existing ?? [] };

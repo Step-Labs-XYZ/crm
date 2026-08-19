@@ -150,6 +150,8 @@ const appRouter = t.router({
   fundreporting: t.router({
     outstanding: publicProcedure
       .query(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<FundreportingRouter["outstanding"]>>),
+    assetManager: publicProcedure
+      .query(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<FundreportingRouter["assetManager"]>>),
     funds: publicProcedure
       .query(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<FundreportingRouter["funds"]>>),
     shareClasses: publicProcedure
