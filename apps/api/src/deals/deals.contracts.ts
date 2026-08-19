@@ -33,6 +33,9 @@ export const dealCreateInput = z.object({
 	amountCents: z.number().int().min(0).nullable().optional(),
 	currency: z.string().length(3).optional(),
 	expectedCloseDate: z.string().nullable().optional(),
+	fundId: z.string().nullable().optional(),
+	shareClassId: z.string().nullable().optional(),
+	committedAmountCents: z.number().int().min(0).nullable().optional(),
 });
 
 export type DealCreateInput = z.infer<typeof dealCreateInput>;
@@ -44,6 +47,9 @@ const dealUpdateInput = z.object({
 	amountCents: z.number().int().min(0).nullable().optional(),
 	currency: z.string().length(3).optional(),
 	expectedCloseDate: z.string().nullable().optional(),
+	fundId: z.string().nullable().optional(),
+	shareClassId: z.string().nullable().optional(),
+	committedAmountCents: z.number().int().min(0).nullable().optional(),
 });
 
 export type DealUpdateInput = z.infer<typeof dealUpdateInput>;

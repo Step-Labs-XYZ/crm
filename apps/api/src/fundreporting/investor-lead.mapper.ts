@@ -15,6 +15,14 @@ export type LeadSource = {
 	closedAt: Date | null;
 	companyName: string | null;
 	person: LeadPerson | null;
+	classification: string | null;
+	interest: FundInterest | null;
+};
+
+export type FundInterest = {
+	fund: string;
+	share_class: string | null;
+	committed_amount: number;
 };
 
 export type InvestorLeadWrite = {
@@ -25,12 +33,30 @@ export type InvestorLeadWrite = {
 	company?: string;
 	status?: string;
 	notes?: string;
+	investor_classification?: string;
+	interests?: FundInterest[];
 };
 
 export type ExistingLead = {
 	id: string | number;
 	email?: string | null;
+	interests?: FundInterest[] | null;
 };
+
+export function mergeInterests(
+	existing: readonly FundInterest[] | null | undefined,
+	incoming: FundInterest | null,
+): FundInterest[] | null {
+	if (!incoming) return null;
+
+	const kept = (existing ?? []).filter(
+		(held) =>
+			held.fund !== incoming.fund ||
+			(held.share_class ?? null) !== (incoming.share_class ?? null),
+	);
+
+	return [...kept, incoming];
+}
 
 export function leadName(person: LeadPerson | null, fallback: string): string {
 	if (!person) return fallback;
@@ -56,9 +82,9 @@ export function handoffNote(source: LeadSource): string {
 		parts.push(`Closed ${source.closedAt.toISOString().slice(0, 10)}.`);
 	}
 
-	parts.push(
-		"Fund interests, committed amounts and classification are not set by the CRM.",
-	);
+	if (!source.interest) {
+		parts.push("No fund interest was recorded on the deal.");
+	}
 
 	return parts.join(" ");
 }
@@ -74,15 +100,23 @@ export function toCreate(source: LeadSource): InvestorLeadWrite {
 	if (source.person?.email) write.email = source.person.email;
 	if (source.person?.phone) write.phone = source.person.phone;
 	if (source.companyName) write.company = source.companyName;
+	if (source.classification) {
+		write.investor_classification = source.classification;
+	}
+	if (source.interest) write.interests = [source.interest];
 
 	return write;
 }
 
 export function toUpdate(
 	source: LeadSource,
+	existing?: ExistingLead | null,
 ): Omit<InvestorLeadWrite, "status"> {
 	const { status, ...rest } = toCreate(source);
 	void status;
+
+	const merged = mergeInterests(existing?.interests, source.interest);
+	if (merged) rest.interests = merged;
 
 	return rest;
 }
