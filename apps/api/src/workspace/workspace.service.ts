@@ -36,6 +36,7 @@ export interface Workspace {
 	slug: string;
 	name: string;
 	website: string | null;
+	assetManagerId: string | null;
 	onboarded: boolean;
 	viewerRole: WorkspaceRole | null;
 	canRename: boolean;
@@ -107,6 +108,7 @@ export class WorkspaceService {
 			slug: row.slug,
 			name: row.name,
 			website: row.website,
+			assetManagerId: row.assetManagerId,
 			onboarded: isOnboarded(row.metadata),
 			viewerRole: role,
 			canRename: canRenameWorkspace(role),
@@ -147,6 +149,9 @@ export class WorkspaceService {
 				slug: workspaceSlug(input.name),
 				website,
 				metadata: markOnboarded(before?.metadata ?? null, new Date()),
+				...(input.assetManagerId === undefined
+					? {}
+					: { assetManagerId: input.assetManagerId || null }),
 			},
 		});
 
@@ -303,6 +308,7 @@ export class WorkspaceService {
 				name: true,
 				website: true,
 				metadata: true,
+				assetManagerId: true,
 			},
 		});
 	}
