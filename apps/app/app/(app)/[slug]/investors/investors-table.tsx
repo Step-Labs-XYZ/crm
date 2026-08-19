@@ -1,9 +1,9 @@
 "use client";
 
-import { Button } from "@crm/ui/components/button";
 import { EmptyCellValue } from "@crm/ui/components/empty-cell";
-import { SimpleTable } from "@crm/ui/components/simple-table";
+import { SimpleTable, SimpleTableRow } from "@crm/ui/components/simple-table";
 import { Skeleton } from "@crm/ui/components/skeleton";
+import { TableCell } from "@crm/ui/components/table";
 import { useQuery } from "@tanstack/react-query";
 import { useOpenRecord } from "@/components/crm/record-sheet/record-stack";
 import { useTRPC } from "@/lib/trpc/client";
@@ -58,42 +58,41 @@ export function InvestorsTable() {
 				{ header: "In this CRM" },
 			]}
 		>
-			<tbody>
-				{rows.map((investor) => (
-					<tr key={investor.id}>
-						<td className="font-medium">{investor.name}</td>
-						<td>{investor.email ?? <EmptyCellValue />}</td>
-						<td>
+			{rows.map((investor) => {
+				const contactId = investor.contactId;
+
+				return (
+					<SimpleTableRow
+						key={investor.id}
+						clickable={Boolean(contactId)}
+						onClick={
+							contactId
+								? () => open({ kind: "contact", id: contactId })
+								: undefined
+						}
+					>
+						<TableCell className="font-medium">{investor.name}</TableCell>
+						<TableCell>{investor.email ?? <EmptyCellValue />}</TableCell>
+						<TableCell>
 							{investor.role ? (
 								(ROLES[investor.role] ?? investor.role)
 							) : (
 								<EmptyCellValue />
 							)}
-						</td>
-						<td>
+						</TableCell>
+						<TableCell>
 							{investor.kind ? (
 								(KINDS[investor.kind] ?? investor.kind)
 							) : (
 								<EmptyCellValue />
 							)}
-						</td>
-						<td>
-							{investor.contactId ? (
-								<Button
-									variant="link"
-									onClick={() =>
-										open({ kind: "contact", id: investor.contactId as string })
-									}
-								>
-									Open contact
-								</Button>
-							) : (
-								<span className="text-muted-foreground">Not a contact yet</span>
-							)}
-						</td>
-					</tr>
-				))}
-			</tbody>
+						</TableCell>
+						<TableCell className="text-muted-foreground">
+							{contactId ? "Already a contact" : "Not a contact yet"}
+						</TableCell>
+					</SimpleTableRow>
+				);
+			})}
 		</SimpleTable>
 	);
 }
