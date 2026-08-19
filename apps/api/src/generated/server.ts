@@ -19,7 +19,7 @@ import { contactListInput, contactIdInput, contactCreateInput, contactUpdateArgs
 import { conversationListInput, conversationEventsInput, conversationSaveInput, conversationIdInput } from "../conversations/conversations.contracts";
 import { dashboardSummaryInput } from "../dashboard/dashboard.contracts";
 import { dealListInput, dealIdInput, dealCreateInput, dealUpdateArgs, setStageInput } from "../deals/deals.contracts";
-import { retryHandoffInput } from "../fundreporting/fundreporting.contracts";
+import { shareClassesInput, retryHandoffInput } from "../fundreporting/fundreporting.contracts";
 import { setAutoCreateInput, suppressDomainInput, threadInput, calendarEventInput } from "../google/google.contracts";
 import { setAgentModelInput, setResearchKeyInput } from "../settings/settings.contracts";
 import { ssoProviderListInput, registerSsoProviderInput, deleteSsoProviderInput } from "../sso/sso.contracts";
@@ -150,6 +150,11 @@ const appRouter = t.router({
   fundreporting: t.router({
     outstanding: publicProcedure
       .query(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<FundreportingRouter["outstanding"]>>),
+    funds: publicProcedure
+      .query(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<FundreportingRouter["funds"]>>),
+    shareClasses: publicProcedure
+      .input(shareClassesInput)
+      .query(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<FundreportingRouter["shareClasses"]>>),
     retry: publicProcedure
       .input(retryHandoffInput)
       .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<FundreportingRouter["retry"]>>)
